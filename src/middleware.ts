@@ -53,7 +53,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && pathname === "/login") {
-    const next = request.nextUrl.searchParams.get("next") || "/";
+    const next = request.nextUrl.searchParams.get("next") || "/dashboard";
     return NextResponse.redirect(new URL(next, request.url));
   }
 

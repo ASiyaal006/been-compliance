@@ -123,7 +123,7 @@ export async function createAssetRecord(raw: CreateAssetInput): Promise<CreateAs
   }
 
   revalidatePath("/assets");
-  revalidatePath("/");
+  revalidatePath("/dashboard");
 
   return { ok: true, assetId: inserted.id };
 }

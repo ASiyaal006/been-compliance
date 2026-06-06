@@ -100,7 +100,7 @@ export async function createInspectionRecord(
 
   revalidatePath("/inspections");
   revalidatePath("/assets");
-  revalidatePath("/");
+  revalidatePath("/dashboard");
   revalidatePath(`/assets/${assetId}`);
 
   return { ok: true };

@@ -130,7 +130,7 @@ export default async function AssetRegisterPage({
             </table>
           </div>
           <div className="border-t border-slate-100 px-6 py-3">
-            <Link href="/" className="text-xs font-semibold text-navy underline-offset-2 hover:underline">
+            <Link href="/dashboard" className="text-xs font-semibold text-navy underline-offset-2 hover:underline">
               ← Back to dashboard
             </Link>
           </div>

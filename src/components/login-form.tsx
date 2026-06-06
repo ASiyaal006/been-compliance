@@ -27,7 +27,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
     }
 
     // Full navigation so the server receives fresh auth cookies (avoids stale RSC session).
-    window.location.assign(redirectTo.startsWith("/") ? redirectTo : "/");
+    window.location.assign(redirectTo.startsWith("/") ? redirectTo : "/dashboard");
   }
 
   return (

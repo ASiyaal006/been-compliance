@@ -25,7 +25,7 @@ export default async function LoginPage({ searchParams }: Props) {
           </p>
         ) : null}
 
-        <LoginForm redirectTo={params.next ?? "/"} />
+        <LoginForm redirectTo={params.next ?? "/dashboard"} />
       </div>
     </div>
   );

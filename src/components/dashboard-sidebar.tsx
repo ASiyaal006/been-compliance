@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOutAction } from "@/actions/auth";
 
 const nav = [
-  { label: "Dashboard", href: "/", match: (p: string) => p === "/" },
+  { label: "Dashboard", href: "/dashboard", match: (p: string) => p === "/dashboard" },
   {
     label: "Asset Register",
     href: "/assets",
@@ -95,7 +95,7 @@ export function DashboardSidebar({
   return (
     <aside className="flex flex-col border-b border-navy-700/50 bg-navy text-white lg:border-b-0 lg:border-r lg:border-white/10">
       <div className="flex h-16 items-center gap-2 border-b border-white/10 px-6">
-        <Link href="/" className="flex size-9 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15">
+        <Link href="/dashboard" className="flex size-9 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15">
           <span className="text-sm font-bold tracking-tight">B</span>
         </Link>
         <div>

@@ -49,7 +49,7 @@ export default async function AssetInspectionFilePage({ params }: Props) {
       <header className="sticky top-0 z-10 flex h-auto min-h-16 shrink-0 flex-col gap-2 border-b border-slate-200 bg-white px-4 py-3 shadow-sm sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0 md:px-8">
         <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <Link
-            href="/"
+            href="/dashboard"
             className="inline-flex w-fit shrink-0 items-center gap-1.5 text-xs font-semibold text-slate-muted transition-colors hover:text-navy"
           >
             <svg className="size-4" aria-hidden fill="none" viewBox="0 0 24 24">
