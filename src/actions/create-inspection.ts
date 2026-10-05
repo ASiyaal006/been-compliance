@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { resolveNextInspectionDueUpdate } from "@/lib/inspection-intervals";
 import {
   INSPECTION_OUTCOMES_FORM,
+  REASONS_FOR_EXAM,
   type InspectionOutcomeForm,
+  type ReasonForExam,
 } from "@/lib/types/inspection";
 import { looksLikeUuid } from "@/lib/data/asset-queries";
 import { profileAccessError, requireAuthenticatedContext } from "@/lib/supabase/auth";
@@ -15,6 +17,13 @@ export type CreateInspectionInput = {
   outcome: InspectionOutcomeForm;
   reference: string;
   notes: string;
+  reasonForExam: ReasonForExam;
+  examinerName: string;
+  examinerQualifications: string;
+  examinerEmployer: string;
+  defects: string;
+  defectRemedyBy: string;
+  testDetails: string;
 };
 
 export type CreateInspectionResult = { ok: true } | { ok: false; error: string };
@@ -26,6 +35,12 @@ export async function createInspectionRecord(
   const inspectionDate = raw.inspectionDate.trim();
   const reference = raw.reference.trim();
   const notes = raw.notes.trim();
+  const examinerName = raw.examinerName.trim();
+  const examinerQualifications = raw.examinerQualifications.trim();
+  const examinerEmployer = raw.examinerEmployer.trim();
+  const defects = raw.defects.trim();
+  const defectRemedyBy = raw.defectRemedyBy.trim();
+  const testDetails = raw.testDetails.trim();
 
   if (!looksLikeUuid(assetId)) {
     return { ok: false, error: "Invalid asset identifier." };
@@ -38,6 +53,21 @@ export async function createInspectionRecord(
   }
   if (!reference) {
     return { ok: false, error: "Certificate / reference number is required." };
+  }
+  if (!REASONS_FOR_EXAM.includes(raw.reasonForExam)) {
+    return { ok: false, error: "Select the reason for the examination." };
+  }
+  if (!examinerName) {
+    return { ok: false, error: "Examiner name is required." };
+  }
+  if (!examinerEmployer) {
+    return { ok: false, error: "Examiner's employer (name and address) is required." };
+  }
+  if (raw.outcome !== "Pass" && !defects) {
+    return { ok: false, error: "Describe the defects found and the repair required." };
+  }
+  if (raw.outcome === "Monitor" && !defectRemedyBy) {
+    return { ok: false, error: "Enter the date by which the defect must be remedied." };
   }
 
   let ctx;
@@ -65,18 +95,6 @@ export async function createInspectionRecord(
     return { ok: false, error: "Asset not found or you do not have access." };
   }
 
-  const { error: insErr } = await ctx.supabase.from("inspections").insert({
-    asset_id: assetId,
-    inspection_date: inspectionDate,
-    outcome: raw.outcome,
-    reference,
-    examiner_notes: notes || null,
-  });
-
-  if (insErr) {
-    return { ok: false, error: insErr.message };
-  }
-
   let nextDue: string | null;
   try {
     nextDue = resolveNextInspectionDueUpdate(
@@ -87,6 +105,26 @@ export async function createInspectionRecord(
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Could not calculate next inspection due.";
     return { ok: false, error: msg };
+  }
+
+  const { error: insErr } = await ctx.supabase.from("inspections").insert({
+    asset_id: assetId,
+    inspection_date: inspectionDate,
+    outcome: raw.outcome,
+    reference,
+    examiner_notes: notes || null,
+    reason_for_exam: raw.reasonForExam,
+    examiner_name: examinerName,
+    examiner_qualifications: examinerQualifications || null,
+    examiner_employer: examinerEmployer,
+    defects: defects || null,
+    defect_remedy_by: raw.outcome === "Pass" ? null : defectRemedyBy || null,
+    test_details: testDetails || null,
+    next_examination_due: nextDue,
+  });
+
+  if (insErr) {
+    return { ok: false, error: insErr.message };
   }
 
   const { error: assetUpdateErr } = await ctx.supabase

@@ -10,6 +10,17 @@ export type CertificatePdfData = {
   nextInspectionDue: string;
   examinerNotes: string;
   clientName: string;
+  clientAddress: string;
+  description: string;
+  manufactureDate: string;
+  previousExamDate: string;
+  reasonForExam: string;
+  defects: string;
+  defectRemedyBy: string;
+  testDetails: string;
+  examinerName: string;
+  examinerQualifications: string;
+  examinerEmployer: string;
 };
 
 export type AssetCertificateContext = {
@@ -18,8 +29,14 @@ export type AssetCertificateContext = {
   siteLocation: string;
   swl: string;
   clientName: string;
+  clientAddress: string;
+  description: string;
+  manufactureDate: string;
+  /** Asset's current next due; used only for older records that did not store their own. */
   nextInspectionDue: string;
 };
+
+const NOT_RECORDED = "Not recorded";
 
 export function buildCertificatePdfData(
   record: {
@@ -27,6 +44,15 @@ export function buildCertificatePdfData(
     outcome: string;
     reference: string;
     examinerNotes: string;
+    reasonForExam: string;
+    examinerName: string;
+    examinerQualifications: string;
+    examinerEmployer: string;
+    defects: string;
+    defectRemedyBy: string;
+    testDetails: string;
+    nextExaminationDue: string;
+    previousExamDate: string;
   },
   ctx: AssetCertificateContext,
 ): CertificatePdfData {
@@ -38,9 +64,20 @@ export function buildCertificatePdfData(
     swl: ctx.swl,
     inspectionDate: record.date,
     outcome: record.outcome,
-    nextInspectionDue: ctx.nextInspectionDue,
+    nextInspectionDue: record.nextExaminationDue || ctx.nextInspectionDue,
     examinerNotes: record.examinerNotes.trim() || "No additional examiner notes recorded.",
     clientName: ctx.clientName,
+    clientAddress: ctx.clientAddress || NOT_RECORDED,
+    description: ctx.description,
+    manufactureDate: ctx.manufactureDate,
+    previousExamDate: record.previousExamDate || "None on file",
+    reasonForExam: record.reasonForExam || NOT_RECORDED,
+    defects: record.defects || "None",
+    defectRemedyBy: record.defectRemedyBy,
+    testDetails: record.testDetails || "None",
+    examinerName: record.examinerName || NOT_RECORDED,
+    examinerQualifications: record.examinerQualifications || NOT_RECORDED,
+    examinerEmployer: record.examinerEmployer || NOT_RECORDED,
   };
 }
 

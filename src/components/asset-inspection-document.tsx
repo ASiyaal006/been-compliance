@@ -47,12 +47,7 @@ export function AssetInspectionDocument({
   model: AssetInspectionViewModel;
   assetId?: string | null;
 }) {
-  const history = model.inspectionHistory.length > 0 ? model.inspectionHistory : model.timeline.map((e) => ({
-    date: e.date,
-    outcome: e.outcome,
-    reference: e.reference,
-    examinerNotes: "",
-  }));
+  const history = model.inspectionHistory;
 
   return (
     <article className="mx-auto max-w-3xl overflow-hidden border border-slate-200 bg-white shadow-sm">
@@ -111,6 +106,8 @@ export function AssetInspectionDocument({
         <dl className="mt-1">
           <SpecRow label="Commissioning date" value={model.commissioningLine} />
           <SpecRow label="Serial number" value={model.serialLine} />
+          <SpecRow label="Make / model" value={model.descriptionLine} />
+          <SpecRow label="Date of manufacture" value={model.manufactureLine} />
           <SpecRow label="SWL / capacity" value={model.swlLine} />
           <SpecRow label="Last test date" value={model.lastTestDateLine} />
         </dl>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useMemo, useState } from "react";
 import { createAssetRecord } from "@/actions/create-asset";
-import type { MachineryTypeDb } from "@/lib/types/machinery";
+import { MACHINERY_TYPE_OPTIONS, isLolerType, type MachineryTypeDb } from "@/lib/types/machinery";
 
 const STEPS = [
   { key: 1, title: "Client & location", subtitle: "Who owns the asset and where it operates." },
@@ -12,23 +12,38 @@ const STEPS = [
   { key: 3, title: "Review & submit", subtitle: "Confirm before creating the inspection file stub." },
 ] as const;
 
-const MACHINERY_TYPES = ["LOLER", "PSSR", "COSHH", "Other"] as const;
-
 type FormState = {
   clientName: string;
+  clientAddress: string;
   siteLocation: string;
   assetIdSerial: string;
-  machineryType: (typeof MACHINERY_TYPES)[number] | "";
+  machineryType: MachineryTypeDb | "";
   commissioningDate: string;
+  swl: string;
+  description: string;
+  manufactureDate: string;
+  notes: string;
 };
 
 const initialForm: FormState = {
   clientName: "",
+  clientAddress: "",
   siteLocation: "",
   assetIdSerial: "",
   machineryType: "",
   commissioningDate: "",
+  swl: "",
+  description: "",
+  manufactureDate: "",
+  notes: "",
 };
+
+const inputCls =
+  "w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-[#002147] shadow-sm outline-none ring-navy/20 transition placeholder:text-slate-400 focus:border-navy/40 focus:ring-2";
+
+function machineryLabel(value: string): string {
+  return MACHINERY_TYPE_OPTIONS.find((o) => o.value === value)?.label ?? value;
+}
 
 function FieldLabel({ children, hint }: { children: ReactNode; hint?: string }) {
   return (
@@ -53,7 +68,8 @@ export function AddAssetForm() {
       return (
         form.assetIdSerial.trim().length > 0 &&
         form.machineryType !== "" &&
-        form.commissioningDate.trim().length > 0
+        form.commissioningDate.trim().length > 0 &&
+        (!isLolerType(form.machineryType) || form.swl.trim().length > 0)
       );
     return true;
   }, [form, step]);
@@ -67,10 +83,15 @@ export function AddAssetForm() {
     setBusy(true);
     const res = await createAssetRecord({
       clientName: form.clientName,
+      clientAddress: form.clientAddress,
       siteLocation: form.siteLocation,
       assetIdSerial: form.assetIdSerial,
       machineryType: form.machineryType as MachineryTypeDb,
       commissioningDate: form.commissioningDate,
+      swl: form.swl,
+      description: form.description,
+      manufactureDate: form.manufactureDate,
+      notes: form.notes,
     });
     setBusy(false);
     if (!res.ok) {
@@ -140,6 +161,23 @@ export function AddAssetForm() {
                 />
               </div>
               <div>
+                <label htmlFor="clientAddress" className="block">
+                  <FieldLabel hint="Printed on examination reports. Saved to the client if it has no address yet.">
+                    Client address (optional)
+                  </FieldLabel>
+                </label>
+                <textarea
+                  id="clientAddress"
+                  name="clientAddress"
+                  rows={2}
+                  autoComplete="street-address"
+                  placeholder="e.g. Unit 4, Riverside Way, London SE16 2AA"
+                  value={form.clientAddress}
+                  onChange={(e) => patch("clientAddress", e.target.value)}
+                  className={`${inputCls} resize-y`}
+                />
+              </div>
+              <div>
                 <label htmlFor="siteLocation" className="block">
                   <FieldLabel>Site location</FieldLabel>
                 </label>
@@ -190,12 +228,59 @@ export function AddAssetForm() {
                   className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-[#002147] shadow-sm outline-none ring-navy/20 transition focus:border-navy/40 focus:ring-2"
                 >
                   <option value="">Select regime</option>
-                  {MACHINERY_TYPES.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
+                  {MACHINERY_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label htmlFor="swl" className="block">
+                  <FieldLabel hint={isLolerType(form.machineryType) ? "Required for lifting equipment." : undefined}>
+                    Safe working load (SWL)
+                  </FieldLabel>
+                </label>
+                <input
+                  id="swl"
+                  name="swl"
+                  type="text"
+                  autoComplete="off"
+                  placeholder="e.g. 2,000 kg"
+                  value={form.swl}
+                  onChange={(e) => patch("swl", e.target.value)}
+                  className={`${inputCls} max-w-xs`}
+                />
+              </div>
+              <div>
+                <label htmlFor="description" className="block">
+                  <FieldLabel>Make / model (optional)</FieldLabel>
+                </label>
+                <input
+                  id="description"
+                  name="description"
+                  type="text"
+                  autoComplete="off"
+                  placeholder="e.g. Genie GS-1932 scissor lift"
+                  value={form.description}
+                  onChange={(e) => patch("description", e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label htmlFor="manufactureDate" className="block">
+                  <FieldLabel hint="A full date or just the year, if known.">Date of manufacture (optional)</FieldLabel>
+                </label>
+                <input
+                  id="manufactureDate"
+                  name="manufactureDate"
+                  type="text"
+                  autoComplete="off"
+                  placeholder="e.g. 2019"
+                  value={form.manufactureDate}
+                  onChange={(e) => patch("manufactureDate", e.target.value)}
+                  className={`${inputCls} max-w-xs`}
+                />
               </div>
               <div>
                 <label htmlFor="commissioningDate" className="block">
@@ -208,6 +293,20 @@ export function AddAssetForm() {
                   value={form.commissioningDate}
                   onChange={(e) => patch("commissioningDate", e.target.value)}
                   className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-[#002147] shadow-sm outline-none ring-navy/20 transition focus:border-navy/40 focus:ring-2"
+                />
+              </div>
+              <div>
+                <label htmlFor="notes" className="block">
+                  <FieldLabel>Notes (optional)</FieldLabel>
+                </label>
+                <textarea
+                  id="notes"
+                  name="notes"
+                  rows={3}
+                  placeholder="Anything useful for the examiner, e.g. access arrangements"
+                  value={form.notes}
+                  onChange={(e) => patch("notes", e.target.value)}
+                  className={`${inputCls} resize-y`}
                 />
               </div>
             </div>
@@ -233,7 +332,7 @@ export function AddAssetForm() {
                 <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
                   Machinery type
                 </dt>
-                <dd className="text-sm font-medium text-[#002147]">{form.machineryType}</dd>
+                <dd className="text-sm font-medium text-[#002147]">{machineryLabel(form.machineryType)}</dd>
               </div>
               <div className="grid gap-1 px-4 py-3 sm:grid-cols-[10rem_1fr] sm:items-baseline">
                 <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
@@ -241,6 +340,22 @@ export function AddAssetForm() {
                 </dt>
                 <dd className="text-sm font-medium tabular-nums text-[#002147]">{form.commissioningDate}</dd>
               </div>
+              {(
+                [
+                  ["Client address", form.clientAddress],
+                  ["SWL", form.swl],
+                  ["Make / model", form.description],
+                  ["Manufactured", form.manufactureDate],
+                  ["Notes", form.notes],
+                ] as const
+              )
+                .filter(([, value]) => value.trim())
+                .map(([label, value]) => (
+                  <div key={label} className="grid gap-1 px-4 py-3 sm:grid-cols-[10rem_1fr] sm:items-baseline">
+                    <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-muted">{label}</dt>
+                    <dd className="whitespace-pre-line text-sm font-medium text-[#002147]">{value}</dd>
+                  </div>
+                ))}
             </dl>
           )}
         </div>

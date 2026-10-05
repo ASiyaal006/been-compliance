@@ -1,4 +1,6 @@
-export type MachineryType = "LOLER" | "PSSR" | "COSHH" | "Other";
+import type { MachineryTypeDb } from "@/lib/types/machinery";
+
+export type MachineryType = MachineryTypeDb;
 export type InspectionOutcome = "Pass" | "Fail" | "Monitor" | "Compliant" | "Defect";
 
 export type Database = {
@@ -8,16 +10,19 @@ export type Database = {
         Row: {
           id: string;
           name: string;
+          address: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           name: string;
+          address?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           name?: string;
+          address?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -33,6 +38,8 @@ export type Database = {
           next_inspection_due: string | null;
           swl: string | null;
           notes: string | null;
+          description: string | null;
+          manufacture_date: string | null;
           created_at: string;
         };
         Insert: {
@@ -45,6 +52,8 @@ export type Database = {
           next_inspection_due?: string | null;
           swl?: string | null;
           notes?: string | null;
+          description?: string | null;
+          manufacture_date?: string | null;
           created_at?: string;
         };
         Update: {
@@ -57,6 +66,8 @@ export type Database = {
           next_inspection_due?: string | null;
           swl?: string | null;
           notes?: string | null;
+          description?: string | null;
+          manufacture_date?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -112,6 +123,14 @@ export type Database = {
           outcome: InspectionOutcome;
           reference: string | null;
           examiner_notes: string | null;
+          reason_for_exam: string | null;
+          examiner_name: string | null;
+          examiner_qualifications: string | null;
+          examiner_employer: string | null;
+          defects: string | null;
+          defect_remedy_by: string | null;
+          test_details: string | null;
+          next_examination_due: string | null;
           created_at: string;
         };
         Insert: {
@@ -121,6 +140,14 @@ export type Database = {
           outcome: InspectionOutcome;
           reference?: string | null;
           examiner_notes?: string | null;
+          reason_for_exam?: string | null;
+          examiner_name?: string | null;
+          examiner_qualifications?: string | null;
+          examiner_employer?: string | null;
+          defects?: string | null;
+          defect_remedy_by?: string | null;
+          test_details?: string | null;
+          next_examination_due?: string | null;
           created_at?: string;
         };
         Update: {
@@ -130,6 +157,14 @@ export type Database = {
           outcome?: InspectionOutcome;
           reference?: string | null;
           examiner_notes?: string | null;
+          reason_for_exam?: string | null;
+          examiner_name?: string | null;
+          examiner_qualifications?: string | null;
+          examiner_employer?: string | null;
+          defects?: string | null;
+          defect_remedy_by?: string | null;
+          test_details?: string | null;
+          next_examination_due?: string | null;
           created_at?: string;
         };
         Relationships: [

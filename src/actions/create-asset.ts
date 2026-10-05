@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { MACHINERY_TYPES_DB, type MachineryTypeDb } from "@/lib/types/machinery";
+import { MACHINERY_TYPES_DB, isLolerType, type MachineryTypeDb } from "@/lib/types/machinery";
 import {
   profileAccessError,
   requireAuthenticatedContext,
@@ -16,6 +16,11 @@ export type CreateAssetInput = {
   assetIdSerial: string;
   machineryType: MachineryTypeDb;
   commissioningDate: string;
+  clientAddress: string;
+  swl: string;
+  description: string;
+  manufactureDate: string;
+  notes: string;
 };
 
 export type CreateAssetResult =
@@ -78,6 +83,8 @@ export async function createAssetRecord(raw: CreateAssetInput): Promise<CreateAs
   const assetIdSerial = normalizeSerial(raw.assetIdSerial);
   const siteLocation = raw.siteLocation.trim();
   const commissioningDate = raw.commissioningDate.trim();
+  const clientAddress = raw.clientAddress.trim();
+  const swl = raw.swl.trim();
 
   if (!clientName) return { ok: false, error: "Client name is required." };
   if (!siteLocation) return { ok: false, error: "Site location is required." };
@@ -85,6 +92,9 @@ export async function createAssetRecord(raw: CreateAssetInput): Promise<CreateAs
   if (!commissioningDate) return { ok: false, error: "Commissioning date is required." };
   if (!MACHINERY_TYPES_DB.includes(raw.machineryType)) {
     return { ok: false, error: "Invalid machinery type." };
+  }
+  if (isLolerType(raw.machineryType) && !swl) {
+    return { ok: false, error: "Safe working load (SWL) is required for lifting equipment." };
   }
 
   let ctx: AuthenticatedContext;
@@ -99,12 +109,28 @@ export async function createAssetRecord(raw: CreateAssetInput): Promise<CreateAs
     return { ok: false, error: clientErr ?? "Unable to resolve client." };
   }
 
+  if (clientAddress) {
+    // Only fills a missing address; an existing one is never overwritten from this form.
+    const { error: addrErr } = await ctx.supabase
+      .from("clients")
+      .update({ address: clientAddress })
+      .eq("id", clientId)
+      .is("address", null);
+    if (addrErr) {
+      return { ok: false, error: `Could not save client address: ${addrErr.message}` };
+    }
+  }
+
   const payload = {
     client_id: clientId,
     asset_id_serial: assetIdSerial,
     machinery_type: raw.machineryType,
     site_location: siteLocation,
     commissioning_date: commissioningDate,
+    swl: swl || null,
+    description: raw.description.trim() || null,
+    manufacture_date: raw.manufactureDate.trim() || null,
+    notes: raw.notes.trim() || null,
   };
 
   const { data: inserted, error: aErr } = await ctx.supabase.from("assets").insert(payload).select("id").single();

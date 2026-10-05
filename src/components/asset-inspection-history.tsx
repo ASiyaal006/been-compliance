@@ -51,6 +51,12 @@ function HistoryEntry({
             >
               {entry.outcome}
             </span>
+            {entry.defects ? (
+              <p className="mt-3 text-sm leading-relaxed text-slate-700">
+                <span className="font-semibold">Defects:</span> {entry.defects}
+                {entry.defectRemedyBy ? ` · Remedy by ${entry.defectRemedyBy}` : ""}
+              </p>
+            ) : null}
             {entry.examinerNotes ? (
               <p className="mt-3 text-sm leading-relaxed text-slate-600">{entry.examinerNotes}</p>
             ) : null}
@@ -90,6 +96,9 @@ export function AssetInspectionHistory({
     siteLocation: model.siteLocation,
     swl: model.swlLine,
     clientName: model.clientName,
+    clientAddress: model.clientAddress,
+    description: model.descriptionLine,
+    manufactureDate: model.manufactureLine,
     nextInspectionDue: model.nextDueLine,
   };
 
