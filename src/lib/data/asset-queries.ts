@@ -9,7 +9,7 @@ import {
   outcomeLabel,
 } from "@/lib/types/inspection";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { MachineryTypeDb } from "@/lib/types/machinery";
+import { isMachineryType, type MachineryTypeDb } from "@/lib/types/machinery";
 import { requireAuthenticatedContext } from "@/lib/supabase/auth";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -20,20 +20,42 @@ const ASSET_LIST_SELECT =
   "id, asset_id_serial, machinery_type, site_location, next_inspection_due, clients!assets_client_id_fkey ( name )" as const;
 
 const ASSET_DETAIL_SELECT =
-  "id, asset_id_serial, machinery_type, site_location, next_inspection_due, commissioning_date, swl, clients!assets_client_id_fkey ( name )" as const;
+  "id, asset_id_serial, machinery_type, site_location, next_inspection_due, commissioning_date, swl, description, manufacture_date, clients!assets_client_id_fkey ( name, address )" as const;
+
+const INSPECTION_DETAIL_SELECT =
+  "outcome, inspection_date, reference, examiner_notes, reason_for_exam, examiner_name, examiner_qualifications, examiner_employer, defects, defect_remedy_by, test_details, next_examination_due" as const;
 
 type AssetListRow = Database["public"]["Tables"]["assets"]["Row"] & {
   clients: { name: string } | null;
 };
 
-type AssetDetailRow = AssetListRow & {
+type AssetDetailRow = Omit<AssetListRow, "clients"> & {
   commissioning_date: string;
   swl: string | null;
+  description: string | null;
+  manufacture_date: string | null;
+  clients: { name: string; address: string | null } | null;
 };
 
 type InspectionRowDb = Pick<
   Database["public"]["Tables"]["inspections"]["Row"],
   "outcome" | "inspection_date" | "reference" | "examiner_notes"
+>;
+
+type InspectionDetailRowDb = Pick<
+  Database["public"]["Tables"]["inspections"]["Row"],
+  | "outcome"
+  | "inspection_date"
+  | "reference"
+  | "examiner_notes"
+  | "reason_for_exam"
+  | "examiner_name"
+  | "examiner_qualifications"
+  | "examiner_employer"
+  | "defects"
+  | "defect_remedy_by"
+  | "test_details"
+  | "next_examination_due"
 >;
 
 export function looksLikeUuid(id: string): boolean {
@@ -62,15 +84,6 @@ export type RegisterRow = {
   outcomeLabel: "Pass" | "Fail" | "Monitor" | "Pending inspection";
   nextDueUk: string;
 };
-
-function embeddedClientName(embed: AssetListRow["clients"]): string {
-  if (!embed) return "Unknown client";
-  return embed.name;
-}
-
-function isMachineryType(value: string): value is MachineryTypeDb {
-  return value === "LOLER" || value === "PSSR" || value === "COSHH" || value === "Other";
-}
 
 export async function fetchRegisterAssets(): Promise<RegisterRow[]> {
   const { supabase: sb } = await requireAuthenticatedContext();
@@ -176,6 +189,9 @@ export type AssetInspectionViewModel = {
   lastTestDateLine: string;
   commissioningLine: string;
   inspectorNotes: string;
+  clientAddress: string;
+  descriptionLine: string;
+  manufactureLine: string;
 };
 
 export type InspectionHistoryRecord = {
@@ -183,15 +199,40 @@ export type InspectionHistoryRecord = {
   outcome: string;
   reference: string;
   examinerNotes: string;
+  /** Schedule 1 report details (empty for records logged before they were captured). */
+  reasonForExam: string;
+  examinerName: string;
+  examinerQualifications: string;
+  examinerEmployer: string;
+  defects: string;
+  defectRemedyBy: string;
+  testDetails: string;
+  /** Next due as stated on this report, or "" for older records. */
+  nextExaminationDue: string;
+  previousExamDate: string;
 };
 
-function mapInspectionHistory(inspections: InspectionRowDb[]): InspectionHistoryRecord[] {
-  return inspections.map((i) => ({
-    date: formatUkFromIsoLocal(i.inspection_date),
-    outcome: outcomeLabel(i.outcome),
-    reference: i.reference ?? "—",
-    examinerNotes: i.examiner_notes?.trim() ?? "",
-  }));
+function mapInspectionHistory(
+  inspections: (InspectionRowDb & Partial<InspectionDetailRowDb>)[],
+): InspectionHistoryRecord[] {
+  return inspections.map((i, idx) => {
+    const previous = inspections[idx + 1];
+    return {
+      date: formatUkFromIsoLocal(i.inspection_date),
+      outcome: outcomeLabel(i.outcome),
+      reference: i.reference ?? "—",
+      examinerNotes: i.examiner_notes?.trim() ?? "",
+      reasonForExam: i.reason_for_exam ?? "",
+      examinerName: i.examiner_name ?? "",
+      examinerQualifications: i.examiner_qualifications ?? "",
+      examinerEmployer: i.examiner_employer ?? "",
+      defects: i.defects?.trim() ?? "",
+      defectRemedyBy: i.defect_remedy_by ? formatUkFromIsoLocal(i.defect_remedy_by) : "",
+      testDetails: i.test_details?.trim() ?? "",
+      nextExaminationDue: i.next_examination_due ? formatUkFromIsoLocal(i.next_examination_due) : "",
+      previousExamDate: previous ? formatUkFromIsoLocal(previous.inspection_date) : "",
+    };
+  });
 }
 
 function mapInspectionsToTimeline(inspections: InspectionRowDb[]): InspectionTimelineEntry[] {
@@ -238,7 +279,7 @@ export async function fetchAssetInspectionViewModel(uuid: string): Promise<Asset
 
   const { data: inspRows, error: inspErr } = await sb
     .from("inspections")
-    .select("outcome, inspection_date, reference, examiner_notes")
+    .select(INSPECTION_DETAIL_SELECT)
     .eq("asset_id", uuid)
     .order("inspection_date", { ascending: false });
 
@@ -246,7 +287,7 @@ export async function fetchAssetInspectionViewModel(uuid: string): Promise<Asset
     throw new Error(`Could not load inspections: ${inspErr.message}`);
   }
 
-  const inspectionsOrdered = (inspRows ?? []) as InspectionRowDb[];
+  const inspectionsOrdered = (inspRows ?? []) as InspectionDetailRowDb[];
 
   const latest = inspectionsOrdered[0];
   const nextDueLine = a.next_inspection_due
@@ -259,7 +300,7 @@ export async function fetchAssetInspectionViewModel(uuid: string): Promise<Asset
     machineryType: isMachineryType(a.machinery_type) ? a.machinery_type : "Other",
     siteLocation: a.site_location ?? "",
     swl: a.swl ?? "Not recorded",
-    clientName: embeddedClientName(a.clients),
+    clientName: a.clients?.name ?? "Unknown client",
     nextInspectionDue: nextDueLine,
   };
   const inspectionHistory = mapInspectionHistory(inspectionsOrdered);
@@ -292,6 +333,9 @@ export async function fetchAssetInspectionViewModel(uuid: string): Promise<Asset
     lastTestDateLine: latest ? formatUkFromIsoLocal(latest.inspection_date) : "No inspection yet",
     commissioningLine: a.commissioning_date ? formatUkFromIsoLocal(a.commissioning_date) : "—",
     inspectorNotes: notesFromDb(latest),
+    clientAddress: a.clients?.address?.trim() ?? "",
+    descriptionLine: a.description?.trim() || "Not recorded",
+    manufactureLine: a.manufacture_date?.trim() || "Not known",
   };
 }
 
@@ -318,11 +362,23 @@ export function fetchLegacyInspectionViewModel(slug: string): AssetInspectionVie
       outcome: e.outcome,
       reference: e.reference,
       examinerNotes: "",
+      reasonForExam: "",
+      examinerName: "",
+      examinerQualifications: "",
+      examinerEmployer: "",
+      defects: "",
+      defectRemedyBy: "",
+      testDetails: "",
+      nextExaminationDue: "",
+      previousExamDate: "",
     })),
     serialLine: legacy.serialNo,
     swlLine: legacy.swl,
     lastTestDateLine: legacy.lastTestDate,
     commissioningLine: "—",
+    clientAddress: "",
+    descriptionLine: "Not recorded",
+    manufactureLine: "Not known",
     inspectorNotes: defect
       ? `Recorded defect under ${legacy.fileRef}. Client advised to withdraw from operation until corrective work is completed and witnessed re-inspection arranged.`
       : `Thorough examination completed in accordance with the applicable statutory regime. Certificate issuance recommended subject to ongoing maintenance per OEM schedule.`,

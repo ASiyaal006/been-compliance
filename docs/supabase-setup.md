@@ -23,6 +23,10 @@ If you created the schema before Pass/Fail/Monitor outcomes were added, also run
 
 [`supabase/migrations/20260503120000_inspection_outcomes.sql`](/supabase/migrations/20260503120000_inspection_outcomes.sql)
 
+Then run the LOLER report migration (needed for asset pages and certificates to load):
+
+[`supabase/migrations/20261005120000_loler_schedule1.sql`](/supabase/migrations/20261005120000_loler_schedule1.sql)
+
 > Row Level Security is **enabled** without public policies yet. Next.js talks to Postgres with the **service role**, which bypasses RLS until you intentionally add tighter policies tied to authenticated users.
 
 ## 3. Add API credentials to `.env.local`

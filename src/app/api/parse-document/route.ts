@@ -138,8 +138,6 @@ function normalizeParsedDates<T extends { inspectionDate: string; expiryDate: st
 }
 
 export async function POST(req: Request) {
-  console.log("Key Check:", process.env.ANTHROPIC_API_KEY?.substring(0, 15) + "...");
-
   const user = await getSessionUser();
   if (!user) {
     return jsonError("Unauthorized", 401);

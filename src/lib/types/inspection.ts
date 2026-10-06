@@ -26,3 +26,13 @@ export function outcomeLabel(outcome: string): string {
   if (isPassOutcome(outcome)) return "Pass";
   return outcome;
 }
+
+/** LOLER Schedule 1: why the thorough examination was carried out. */
+export const REASONS_FOR_EXAM = [
+  "Within an interval of 6 months",
+  "Within an interval of 12 months",
+  "In accordance with an examination scheme",
+  "After the occurrence of exceptional circumstances",
+  "First examination after installation or assembly",
+] as const;
+export type ReasonForExam = (typeof REASONS_FOR_EXAM)[number];
