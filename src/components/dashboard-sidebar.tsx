@@ -18,6 +18,11 @@ const nav = [
     match: (p: string) => p.startsWith("/inspections"),
   },
   {
+    label: "Certificates",
+    href: "/certificates",
+    match: (p: string) => p.startsWith("/certificates"),
+  },
+  {
     label: "Settings",
     href: "/settings",
     match: (p: string) => p === "/settings" || p.startsWith("/settings/"),
@@ -66,6 +71,20 @@ function NavIconReports() {
   );
 }
 
+function NavIconCertificates() {
+  return (
+    <svg className="size-5 shrink-0 opacity-90" aria-hidden fill="none" viewBox="0 0 24 24">
+      <path
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.5}
+        d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      />
+    </svg>
+  );
+}
+
 function NavIconSettings() {
   return (
     <svg className="size-5 shrink-0 opacity-90" aria-hidden fill="none" viewBox="0 0 24 24">
@@ -81,7 +100,7 @@ function NavIconSettings() {
   );
 }
 
-const navIcons = [NavIconDashboard, NavIconAssets, NavIconReports, NavIconSettings];
+const navIcons = [NavIconDashboard, NavIconAssets, NavIconReports, NavIconCertificates, NavIconSettings];
 
 export function DashboardSidebar({
   userEmail,

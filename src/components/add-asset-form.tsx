@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { createAssetRecord } from "@/actions/create-asset";
 import type { MachineryTypeDb } from "@/lib/types/machinery";
+import type { ParsedDocumentData } from "@/lib/types/parsed-document";
 
 const STEPS = [
   { key: 1, title: "Client & location", subtitle: "Who owns the asset and where it operates." },
@@ -39,7 +40,11 @@ function FieldLabel({ children, hint }: { children: ReactNode; hint?: string }) 
   );
 }
 
-export function AddAssetForm() {
+export function AddAssetForm({
+  bindApplyParsed,
+}: {
+  bindApplyParsed?: (apply: (data: ParsedDocumentData) => void) => void;
+}) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormState>(initialForm);
@@ -62,6 +67,31 @@ export function AddAssetForm() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  const applyParsedDocument = useCallback((data: ParsedDocumentData) => {
+    const machineryType =
+      data.machineryType === "LOLER" ||
+      data.machineryType === "PSSR" ||
+      data.machineryType === "COSHH" ||
+      data.machineryType === "Other"
+        ? data.machineryType
+        : "";
+
+    setForm((current) => ({
+      ...current,
+      clientName: data.clientName || current.clientName,
+      siteLocation: data.siteLocation || current.siteLocation,
+      assetIdSerial: data.serialOrModelNumber || current.assetIdSerial,
+      machineryType: machineryType || current.machineryType,
+      commissioningDate: data.inspectionDate || data.expiryDate || current.commissioningDate,
+    }));
+    setSubmitError(null);
+    setStep(1);
+  }, []);
+
+  useEffect(() => {
+    bindApplyParsed?.(applyParsedDocument);
+  }, [bindApplyParsed, applyParsedDocument]);
+
   async function handleSubmit() {
     setSubmitError(null);
     setBusy(true);
@@ -81,7 +111,7 @@ export function AddAssetForm() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div>
       {/* Step indicator */}
       <ol className="mb-8 flex gap-2 sm:gap-4" aria-label="Form progress">
         {STEPS.map((s) => {
