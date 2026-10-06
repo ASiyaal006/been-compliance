@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CertificatesPageUpload } from "@/components/certificates-page-upload";
+import { DeleteCertificateButton } from "@/components/delete-certificate-button";
 import { fetchAllInspectionReports, fetchSavedCertificates } from "@/lib/data/inspection-queries";
 import { isFailureOutcome, isMonitorOutcome, isPassOutcome } from "@/lib/types/inspection";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -112,12 +113,15 @@ export default async function CertificatesPage() {
                   <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
                     Source
                   </th>
+                  <th className="px-6 py-3">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {withReference.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-14 text-center text-sm text-slate-muted">
+                    <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-muted">
                       {configured
                         ? "No certificate references yet. Parse a document above or log an inspection on an asset."
                         : "Database not configured."}
@@ -149,6 +153,14 @@ export default async function CertificatesPage() {
                       </td>
                       <td className="whitespace-nowrap px-6 py-3.5 text-[13px] text-slate-muted">
                         {row.source === "uploaded" ? "Uploaded" : "Inspection"}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-3.5 text-right">
+                        {row.source === "uploaded" ? (
+                          <DeleteCertificateButton
+                            certificateId={row.certificateId}
+                            reference={row.reference}
+                          />
+                        ) : null}
                       </td>
                     </tr>
                   ))
