@@ -167,6 +167,12 @@ export async function POST(req: Request) {
       schemaDescription:
         "Structured fields extracted from an industrial compliance certificate or asset document.",
       messages: [message],
+      // The provider doesn't recognise newer model ids, so it falls back to a forced
+      // tool call, which these models reject. Use native structured outputs instead.
+      providerOptions: {
+        anthropic: { structuredOutputMode: "outputFormat" },
+      },
+      maxOutputTokens: 4096,
     });
 
     return Response.json({
@@ -177,12 +183,9 @@ export async function POST(req: Request) {
       },
     });
   } catch (error) {
-    console.log("FULL AI ERROR:", error); 
+    console.error("parse-document failed:", error);
 
     const message = error instanceof Error ? error.message : "Failed to parse document.";
     return Response.json({ error: message }, { status: 500 });
   }
 }
-  
-  
-
