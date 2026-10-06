@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { InspectionsCertificateUpload } from "@/components/inspections-certificate-upload";
+import { CertificatesPageUpload } from "@/components/certificates-page-upload";
 import { fetchAllInspectionReports } from "@/lib/data/inspection-queries";
 import { isFailureOutcome, isMonitorOutcome, isPassOutcome } from "@/lib/types/inspection";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -33,7 +33,7 @@ function OutcomeBadge({ outcome }: { outcome: string }) {
   );
 }
 
-export default async function InspectionReportsPage() {
+export default async function CertificatesPage() {
   const configured = isSupabaseConfigured();
   let rows: Awaited<ReturnType<typeof fetchAllInspectionReports>> = [];
   let loadError: string | null = null;
@@ -42,17 +42,19 @@ export default async function InspectionReportsPage() {
     try {
       rows = await fetchAllInspectionReports();
     } catch (e) {
-      loadError = e instanceof Error ? e.message : "Failed to load inspection reports.";
+      loadError = e instanceof Error ? e.message : "Failed to load certificates.";
     }
   }
+
+  const withReference = rows.filter((row) => row.reference.trim().length > 0);
 
   return (
     <>
       <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 shadow-sm md:px-8">
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold tracking-tight text-[#002147]">Inspection reports</h1>
+          <h1 className="text-lg font-semibold tracking-tight text-[#002147]">Certificates</h1>
           <p className="hidden text-[12px] text-slate-muted sm:block">
-            Full statutory history · all clients and assets
+            Parse incoming certificates · issued inspection records on file
           </p>
         </div>
         <button
@@ -64,71 +66,59 @@ export default async function InspectionReportsPage() {
         </button>
       </header>
 
-      <main className="flex-1 overflow-auto p-4 md:p-8">
-        <InspectionsCertificateUpload />
+      <CertificatesPageUpload />
 
+      <main className="flex-1 overflow-auto p-4 md:p-8">
         {loadError ? (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
-            <span className="font-semibold">Reports unavailable.</span> {loadError}
-            <p className="mt-2 text-xs text-red-800">
-              If you see a constraint error on outcome, run{" "}
-              <span className="font-mono">supabase/migrations/20260503120000_inspection_outcomes.sql</span> in the
-              Supabase SQL editor.
-            </p>
+            <span className="font-semibold">Certificates unavailable.</span> {loadError}
           </div>
         ) : null}
 
         <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-6 py-4">
-            <h2 className="text-base font-semibold text-[#002147]">All inspection records</h2>
+            <h2 className="text-base font-semibold text-[#002147]">Issued certificates</h2>
             <p className="text-sm text-slate-muted">
-              {configured ? `${rows.length} reports on file` : "Connect Supabase to load reports"}
+              {configured
+                ? `${withReference.length} certificate references on file`
+                : "Connect Supabase to load certificates"}
             </p>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-sm">
+            <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80">
                   <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
-                    Date
+                    Certificate ref
                   </th>
                   <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
                     Asset ID
                   </th>
                   <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
-                    Client
-                  </th>
-                  <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
-                    Site
+                    Inspection date
                   </th>
                   <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
                     Outcome
                   </th>
-                  <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
-                    Certificate ref
-                  </th>
-                  <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
-                    Notes
-                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.length === 0 ? (
+                {withReference.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-14 text-center text-sm text-slate-muted">
+                    <td colSpan={4} className="px-6 py-14 text-center text-sm text-slate-muted">
                       {configured
-                        ? "No inspections logged yet. Open an asset and use Log inspection."
+                        ? "No certificate references yet. Parse a document above or log an inspection on an asset."
                         : "Database not configured."}
                     </td>
                   </tr>
                 ) : (
-                  rows.map((row) => (
+                  withReference.map((row) => (
                     <tr key={row.id} className="transition-colors hover:bg-slate-50/80">
-                      <td className="whitespace-nowrap px-6 py-3.5 font-medium tabular-nums text-[#002147]">
-                        {row.inspectionDateUk}
+                      <td className="whitespace-nowrap px-6 py-3.5 font-mono text-xs font-medium text-[#002147]">
+                        {row.reference}
                       </td>
-                      <td className="whitespace-nowrap px-6 py-3.5 font-mono text-[13px] font-medium">
+                      <td className="whitespace-nowrap px-6 py-3.5 font-mono text-[13px]">
                         {row.assetId ? (
                           <Link
                             href={`/assets/${encodeURIComponent(row.assetId)}`}
@@ -140,16 +130,11 @@ export default async function InspectionReportsPage() {
                           row.assetLabel
                         )}
                       </td>
-                      <td className="px-6 py-3.5 text-slate-muted">{row.clientName}</td>
-                      <td className="px-6 py-3.5 text-slate-muted">{row.site}</td>
+                      <td className="whitespace-nowrap px-6 py-3.5 tabular-nums text-slate-muted">
+                        {row.inspectionDateUk}
+                      </td>
                       <td className="whitespace-nowrap px-6 py-3.5">
                         <OutcomeBadge outcome={row.outcome} />
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-3.5 font-mono text-xs text-slate-muted">
-                        {row.reference}
-                      </td>
-                      <td className="max-w-[200px] truncate px-6 py-3.5 text-slate-muted" title={row.notesPreview}>
-                        {row.notesPreview}
                       </td>
                     </tr>
                   ))

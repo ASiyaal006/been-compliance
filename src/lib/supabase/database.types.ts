@@ -2,6 +2,8 @@ import type { MachineryTypeDb } from "@/lib/types/machinery";
 
 export type MachineryType = MachineryTypeDb;
 export type InspectionOutcome = "Pass" | "Fail" | "Monitor" | "Compliant" | "Defect";
+export type CertificateStatus = "Pass" | "Fail" | "Monitor" | "Unknown";
+export type CertificateMachineryType = MachineryType | "Unknown";
 
 export type Database = {
   public: {
@@ -176,6 +178,57 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      certificates: {
+        Row: {
+          id: string;
+          user_id: string;
+          created_at: string;
+          asset_name: string;
+          serial_or_model_number: string;
+          inspection_date: string | null;
+          expiry_date: string | null;
+          inspector_or_company: string;
+          status: CertificateStatus;
+          client_name: string;
+          site_location: string;
+          machinery_type: CertificateMachineryType;
+          certificate_reference: string;
+          examiner_notes: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          created_at?: string;
+          asset_name?: string;
+          serial_or_model_number?: string;
+          inspection_date?: string | null;
+          expiry_date?: string | null;
+          inspector_or_company?: string;
+          status?: CertificateStatus;
+          client_name?: string;
+          site_location?: string;
+          machinery_type?: CertificateMachineryType;
+          certificate_reference?: string;
+          examiner_notes?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          created_at?: string;
+          asset_name?: string;
+          serial_or_model_number?: string;
+          inspection_date?: string | null;
+          expiry_date?: string | null;
+          inspector_or_company?: string;
+          status?: CertificateStatus;
+          client_name?: string;
+          site_location?: string;
+          machinery_type?: CertificateMachineryType;
+          certificate_reference?: string;
+          examiner_notes?: string;
+        };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;

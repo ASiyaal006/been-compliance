@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AddAssetForm } from "@/components/add-asset-form";
+import { NewAssetPageContent } from "@/components/new-asset-page-content";
 
 export default function NewAssetPage() {
   return (
@@ -33,7 +33,7 @@ export default function NewAssetPage() {
       </header>
 
       <main className="flex-1 overflow-auto p-4 md:p-8">
-        <AddAssetForm />
+        <NewAssetPageContent />
       </main>
     </>
   );

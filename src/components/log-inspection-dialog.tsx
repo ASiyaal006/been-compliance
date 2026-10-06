@@ -1,14 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createInspectionRecord } from "@/actions/create-inspection";
+import { ZeroTouchCapture } from "@/components/zero-touch/ZeroTouchCapture";
+import { useZeroTouchUpload } from "@/components/zero-touch/use-zero-touch-upload";
 import {
   INSPECTION_OUTCOMES_FORM,
   REASONS_FOR_EXAM,
   type InspectionOutcomeForm,
   type ReasonForExam,
 } from "@/lib/types/inspection";
+import type { ParsedDocumentData } from "@/lib/types/parsed-document";
 
 /** Examiner details are the same on most reports, so remember them on this device. */
 const EXAMINER_STORAGE_KEY = "been:last-examiner";
@@ -59,6 +62,24 @@ export function LogInspectionDialog({ assetId, assetLabel, open, onClose }: Prop
   const [testDetails, setTestDetails] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const applyParsedDocument = useCallback((data: ParsedDocumentData) => {
+    const parsedOutcome =
+      data.status === "Pass" || data.status === "Fail" || data.status === "Monitor"
+        ? data.status
+        : "";
+
+    setInspectionDate(data.inspectionDate || "");
+    setOutcome(parsedOutcome);
+    setReference(data.certificateReference || "");
+    setNotes(data.examinerNotes || "");
+    if (data.inspectorOrCompany) {
+      setExaminerEmployer((current) => current || data.inspectorOrCompany);
+    }
+    setError(null);
+  }, []);
+
+  const upload = useZeroTouchUpload(applyParsedDocument);
 
   useEffect(() => {
     const el = dialogRef.current;
@@ -134,19 +155,30 @@ export function LogInspectionDialog({ assetId, assetLabel, open, onClose }: Prop
   return (
     <dialog
       ref={dialogRef}
-      onClose={onClose}
-      className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-0 text-[#002147] shadow-xl backdrop:bg-navy/40"
+      onClose={() => {
+        upload.clearParsed();
+        onClose();
+      }}
+      className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-0 text-[#002147] shadow-xl backdrop:bg-navy/40"
       aria-labelledby="log-inspection-title"
     >
-      <form onSubmit={handleSubmit} className="flex flex-col">
-        <div className="border-b border-slate-200 bg-navy px-6 py-4 text-white">
-          <h2 id="log-inspection-title" className="text-lg font-semibold tracking-tight">
-            Log inspection
-          </h2>
-          <p className="mt-1 font-mono text-sm text-white/85">{assetLabel}</p>
-        </div>
+      <div className="border-b border-slate-200 bg-navy px-6 py-4 text-white">
+        <h2 id="log-inspection-title" className="text-lg font-semibold tracking-tight">
+          Log inspection
+        </h2>
+        <p className="mt-1 font-mono text-sm text-white/85">{assetLabel}</p>
+      </div>
 
-        <div className="max-h-[65vh] space-y-5 overflow-y-auto px-6 py-6">
+      <div className="px-6 pt-6">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-muted">
+          Zero-Touch parser
+        </p>
+        <ZeroTouchCapture upload={upload} />
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex flex-col">
+
+        <div className="space-y-5 px-6 py-6">
           <div>
             <label htmlFor="inspection_date" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-muted">
               Inspection date
