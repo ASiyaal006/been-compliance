@@ -10,6 +10,7 @@ import {
 } from "@/lib/types/inspection";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMachineryType, type MachineryTypeDb } from "@/lib/types/machinery";
+import { getExpiryStatus, todayUk, type ExpiryStatus } from "@/lib/expiry";
 import { requireAuthenticatedContext } from "@/lib/supabase/auth";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -83,6 +84,7 @@ export type RegisterRow = {
   site: string;
   outcomeLabel: "Pass" | "Fail" | "Monitor" | "Pending inspection";
   nextDueUk: string;
+  expiry: ExpiryStatus;
 };
 
 export async function fetchRegisterAssets(): Promise<RegisterRow[]> {
@@ -105,6 +107,7 @@ export async function fetchRegisterAssets(): Promise<RegisterRow[]> {
 
   const ids = assets.map((r) => r.id);
   const inspectionsByAsset = await fetchLatestInspectionsForAssets(sb, ids);
+  const today = todayUk();
 
   return assets.map((r) => {
     const machineryType = isMachineryType(r.machinery_type) ? r.machinery_type : "Other";
@@ -130,6 +133,10 @@ export async function fetchRegisterAssets(): Promise<RegisterRow[]> {
         : outcome && isFailureOutcome(outcome)
           ? "Invalidated"
           : "TBC",
+      expiry: getExpiryStatus(r.next_inspection_due, {
+        failed: !!outcome && isFailureOutcome(outcome),
+        today,
+      }),
     };
   });
 }

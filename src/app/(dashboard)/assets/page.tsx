@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ExpiryBadge } from "@/components/expiry-badge";
 import { fetchRegisterAssets } from "@/lib/data/asset-queries";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { withTimeout } from "@/lib/with-timeout";
@@ -83,7 +84,7 @@ export default async function AssetRegisterPage({
             </Link>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
+            <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80">
                   <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
@@ -95,12 +96,15 @@ export default async function AssetRegisterPage({
                   <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
                     Site
                   </th>
+                  <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
+                    Next due
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-6 py-12 text-center text-sm text-slate-muted">
+                    <td colSpan={4} className="px-6 py-12 text-center text-sm text-slate-muted">
                       {configured
                         ? "No assets in the database yet."
                         : "Connect Supabase to load your live register."}{" "}
@@ -123,6 +127,12 @@ export default async function AssetRegisterPage({
                       </td>
                       <td className="px-6 py-3.5 text-slate-muted">{row.machineryType}</td>
                       <td className="px-6 py-3.5 text-slate-muted">{row.site}</td>
+                      <td className="whitespace-nowrap px-6 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <ExpiryBadge status={row.expiry} />
+                          <span className="tabular-nums text-slate-muted">{row.nextDueUk}</span>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
