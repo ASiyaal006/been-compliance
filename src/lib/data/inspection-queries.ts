@@ -51,6 +51,8 @@ function formatUkFromIsoLocal(isoOrYmd: string): string {
 export type InspectionReportListItem = {
   id: string;
   source: "inspection" | "uploaded";
+  /** `certificates.id` for uploaded rows; empty for inspections. */
+  certificateId: string;
   inspectionDateIso: string;
   inspectionDateUk: string;
   outcome: string;
@@ -82,6 +84,7 @@ export async function fetchAllInspectionReports(): Promise<InspectionReportListI
     return {
       id: row.id,
       source: "inspection" as const,
+      certificateId: "",
       inspectionDateIso: row.inspection_date,
       inspectionDateUk: formatUkFromIsoLocal(row.inspection_date),
       outcome: row.outcome,
@@ -132,6 +135,7 @@ export async function fetchSavedCertificates(): Promise<InspectionReportListItem
     return {
       id: `cert-${row.id}`,
       source: "uploaded" as const,
+      certificateId: row.id,
       inspectionDateIso: dateIso,
       inspectionDateUk: row.inspection_date ? formatUkFromIsoLocal(row.inspection_date) : "—",
       outcome: row.status,

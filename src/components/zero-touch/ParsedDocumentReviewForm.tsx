@@ -81,6 +81,7 @@ export function ParsedDocumentReviewForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(sanitizeDraft(data));
@@ -88,6 +89,7 @@ export function ParsedDocumentReviewForm({
 
   function updateField(key: keyof ParsedDocumentData, value: string) {
     setSaved(false);
+    setDuplicateWarning(null);
     setDraft((current) => ({ ...current, [key]: value }) as ParsedDocumentData);
   }
 
@@ -110,12 +112,18 @@ export function ParsedDocumentReviewForm({
       return;
     }
 
-    const savedResult = await saveCertificate(draft);
+    const savedResult = await saveCertificate(draft, { allowDuplicate: duplicateWarning !== null });
     if (!savedResult.ok) {
-      setFormError(savedResult.error);
+      if (savedResult.duplicate) {
+        setDuplicateWarning(savedResult.error);
+      } else {
+        setFormError(savedResult.error);
+      }
       setSubmitting(false);
       return;
     }
+
+    setDuplicateWarning(null);
 
     onPersisted?.();
   }
@@ -192,6 +200,12 @@ export function ParsedDocumentReviewForm({
           </p>
         ) : null}
 
+        {duplicateWarning ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">
+            {duplicateWarning}
+          </p>
+        ) : null}
+
         {saved ? (
           <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" role="status">
             Approved and saved.
@@ -213,7 +227,7 @@ export function ParsedDocumentReviewForm({
             aria-busy={submitting}
             className="rounded-lg bg-navy px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#00306a] disabled:opacity-60"
           >
-            {submitting ? "Saving…" : "Approve & Save"}
+            {submitting ? "Saving…" : duplicateWarning ? "Save anyway" : "Approve & Save"}
           </button>
         </div>
       </form>

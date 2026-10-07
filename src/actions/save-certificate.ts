@@ -4,14 +4,19 @@ import { revalidatePath } from "next/cache";
 import { normalizeIsoDate, parsedDocumentSchema, type ParsedDocumentData } from "@/lib/types/parsed-document";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export type SaveCertificateResult = { ok: true } | { ok: false; error: string };
+export type SaveCertificateResult =
+  | { ok: true }
+  | { ok: false; error: string; duplicate?: true };
 
 function toDateOrNull(value: string): string | null {
   const iso = normalizeIsoDate(value);
   return iso || null;
 }
 
-export async function saveCertificate(raw: ParsedDocumentData): Promise<SaveCertificateResult> {
+export async function saveCertificate(
+  raw: ParsedDocumentData,
+  options: { allowDuplicate?: boolean } = {},
+): Promise<SaveCertificateResult> {
   const parsed = parsedDocumentSchema.safeParse(raw);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the extracted fields." };
@@ -34,6 +39,26 @@ export async function saveCertificate(raw: ParsedDocumentData): Promise<SaveCert
 
   if (userError || !user) {
     return { ok: false, error: "You must be signed in to save a certificate." };
+  }
+
+  const reference = data.certificateReference.trim();
+  if (reference && !options.allowDuplicate) {
+    const [certMatch, inspectionMatch] = await Promise.all([
+      supabase.from("certificates").select("id").eq("certificate_reference", reference).limit(1),
+      supabase.from("inspections").select("id").eq("reference", reference).limit(1),
+    ]);
+    const where = (certMatch.data?.length ?? 0) > 0
+      ? "an uploaded certificate"
+      : (inspectionMatch.data?.length ?? 0) > 0
+        ? "an inspection report"
+        : null;
+    if (where) {
+      return {
+        ok: false,
+        duplicate: true,
+        error: `Certificate reference ${reference} is already on file as ${where}. Save it again anyway?`,
+      };
+    }
   }
 
   const { error } = await supabase.from("certificates").insert({
