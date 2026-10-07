@@ -20,7 +20,7 @@ export function ZeroTouchCapture({ upload, persistCertificate = false }: ZeroTou
 
   useEffect(() => {
     if (!savedMessage) return;
-    const timer = window.setTimeout(() => setSavedMessage(null), 4000);
+    const timer = window.setTimeout(() => setSavedMessage(null), 8000);
     return () => window.clearTimeout(timer);
   }, [savedMessage]);
 
@@ -32,9 +32,9 @@ export function ZeroTouchCapture({ upload, persistCertificate = false }: ZeroTou
         onApprove={upload.approve}
         onCancel={upload.clearParsed}
         persistCertificate={persistCertificate}
-        onPersisted={() => {
+        onPersisted={(message) => {
           upload.clearParsed();
-          setSavedMessage("Certificate saved.");
+          setSavedMessage(message);
         }}
       />
     );

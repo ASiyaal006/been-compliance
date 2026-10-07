@@ -183,6 +183,7 @@ export type Database = {
         Row: {
           id: string;
           user_id: string;
+          asset_id: string | null;
           created_at: string;
           asset_name: string;
           serial_or_model_number: string;
@@ -199,6 +200,7 @@ export type Database = {
         Insert: {
           id?: string;
           user_id: string;
+          asset_id?: string | null;
           created_at?: string;
           asset_name?: string;
           serial_or_model_number?: string;
@@ -215,6 +217,7 @@ export type Database = {
         Update: {
           id?: string;
           user_id?: string;
+          asset_id?: string | null;
           created_at?: string;
           asset_name?: string;
           serial_or_model_number?: string;
