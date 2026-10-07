@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { normalizeIsoDate, parsedDocumentSchema, type ParsedDocumentData } from "@/lib/types/parsed-document";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { calculateNextInspectionDue } from "@/lib/inspection-intervals";
 
 export type SaveCertificateResult =
   | { ok: true; message: string }
@@ -84,19 +85,35 @@ export async function saveCertificate(
   }
 
   let message = link.message;
+  // Use the certificate's expiry date; when it has none, work it out from the
+  // inspection date and the statutory interval (6 or 12 months).
   const expiry = toDateOrNull(data.expiryDate);
+  const inspected = toDateOrNull(data.inspectionDate);
+  const nextDue =
+    expiry ??
+    (inspected && link.asset
+      ? calculateNextInspectionDue(inspected, link.asset.machinery_type || data.machineryType)
+      : null);
+  const dueSource = expiry ? "" : " (worked out from the inspection date)";
   // A failed examination never extends the due date, and an older certificate
   // never moves it backwards.
-  if (link.asset && expiry && data.status !== "Fail") {
+  if (link.asset && data.status !== "Fail") {
     const current = link.asset.next_inspection_due;
-    if (!current || expiry > current) {
-      const { error: updateError } = await supabase
+    if (!nextDue) {
+      message = `${message} It has no expiry or inspection date, so the asset's due date wasn't changed.`;
+    } else if (!current || nextDue > current) {
+      const { data: updated, error: updateError } = await supabase
         .from("assets")
-        .update({ next_inspection_due: expiry })
-        .eq("id", link.asset.id);
+        .update({ next_inspection_due: nextDue })
+        .eq("id", link.asset.id)
+        .select("id");
       message = updateError
         ? `${message} Could not update its next due date: ${updateError.message}`
-        : `${message} Next inspection due updated to ${formatUk(expiry)}.`;
+        : (updated?.length ?? 0) === 0
+          ? `${message} You don't have permission to update this asset's due date.`
+          : `${message} Next inspection due updated to ${formatUk(nextDue)}${dueSource}.`;
+    } else {
+      message = `${message} The asset already has a later due date (${formatUk(current)}), so it wasn't changed.`;
     }
   }
 
@@ -109,7 +126,12 @@ export async function saveCertificate(
   return { ok: true, message };
 }
 
-type MatchedAsset = { id: string; asset_id_serial: string; next_inspection_due: string | null };
+type MatchedAsset = {
+  id: string;
+  asset_id_serial: string;
+  machinery_type: string;
+  next_inspection_due: string | null;
+};
 
 function formatUk(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
@@ -132,7 +154,7 @@ async function findAssetForCertificate(
   const pattern = serial.replace(/[\\%_]/g, (c) => `\\${c}`);
   const { data: rows, error } = await supabase
     .from("assets")
-    .select("id, asset_id_serial, next_inspection_due, clients!assets_client_id_fkey ( name )")
+    .select("id, asset_id_serial, machinery_type, next_inspection_due, clients!assets_client_id_fkey ( name )")
     .ilike("asset_id_serial", pattern)
     .limit(10);
 
