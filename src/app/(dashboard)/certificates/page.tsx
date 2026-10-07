@@ -156,10 +156,22 @@ export default async function CertificatesPage() {
                       </td>
                       <td className="whitespace-nowrap px-6 py-3.5 text-right">
                         {row.source === "uploaded" ? (
-                          <DeleteCertificateButton
-                            certificateId={row.certificateId}
-                            reference={row.reference}
-                          />
+                          <div className="flex items-center justify-end gap-3">
+                            {row.hasFile ? (
+                              <a
+                                href={`/api/certificates/${row.certificateId}/file`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-semibold text-navy underline-offset-2 hover:underline"
+                              >
+                                View PDF
+                              </a>
+                            ) : null}
+                            <DeleteCertificateButton
+                              certificateId={row.certificateId}
+                              reference={row.reference}
+                            />
+                          </div>
                         ) : null}
                       </td>
                     </tr>

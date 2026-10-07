@@ -53,6 +53,8 @@ export type InspectionReportListItem = {
   source: "inspection" | "uploaded";
   /** `certificates.id` for uploaded rows; empty for inspections. */
   certificateId: string;
+  /** True when the original uploaded file is stored. */
+  hasFile: boolean;
   inspectionDateIso: string;
   inspectionDateUk: string;
   outcome: string;
@@ -85,6 +87,7 @@ export async function fetchAllInspectionReports(): Promise<InspectionReportListI
       id: row.id,
       source: "inspection" as const,
       certificateId: "",
+      hasFile: false,
       inspectionDateIso: row.inspection_date,
       inspectionDateUk: formatUkFromIsoLocal(row.inspection_date),
       outcome: row.outcome,
@@ -113,6 +116,8 @@ type SavedCertificateRow = {
   certificate_reference: string | null;
   examiner_notes: string | null;
   created_at: string;
+  /** Absent until the certificate files migration has run. */
+  file_path?: string | null;
 };
 
 /** Certificates uploaded and approved through Zero-Touch parsing (`certificates` table). */
@@ -121,9 +126,8 @@ export async function fetchSavedCertificates(): Promise<InspectionReportListItem
 
   const { data: rows, error } = await sb
     .from("certificates")
-    .select(
-      "id, asset_id, asset_name, serial_or_model_number, inspection_date, status, client_name, site_location, machinery_type, certificate_reference, examiner_notes, created_at",
-    )
+    // "*" so the list keeps working before the file_path column exists.
+    .select("*")
     .order("inspection_date", { ascending: false, nullsFirst: false });
 
   if (error) {
@@ -137,6 +141,7 @@ export async function fetchSavedCertificates(): Promise<InspectionReportListItem
       id: `cert-${row.id}`,
       source: "uploaded" as const,
       certificateId: row.id,
+      hasFile: !!row.file_path,
       inspectionDateIso: dateIso,
       inspectionDateUk: row.inspection_date ? formatUkFromIsoLocal(row.inspection_date) : "—",
       outcome: row.status,

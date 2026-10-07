@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { saveCertificate } from "@/actions/save-certificate";
+import { CERTIFICATE_FILES_BUCKET, certificateFilePath } from "@/lib/certificate-files";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   parsedDocumentSchema,
   type ParsedDocumentData,
@@ -12,6 +14,8 @@ type ApproveResult = { ok: true } | { ok: false; error: string };
 type ParsedDocumentReviewFormProps = {
   data: ParsedDocumentData;
   filename?: string | null;
+  /** Original upload; stored alongside the certificate when persisting. */
+  file?: File | null;
   onApprove: (data: ParsedDocumentData) => ApproveResult;
   onCancel: () => void;
   /** When true, Approve & Save inserts a row into public.certificates. */
@@ -57,6 +61,22 @@ const REVIEW_FIELDS: ReviewField[] = (
   return { key, label: fieldLabel(key), options, input };
 });
 
+async function storeOriginalFile(
+  file: File,
+): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  const supabase = createSupabaseBrowserClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "not signed in" };
+
+  const path = certificateFilePath(user.id, file.type);
+  const { error } = await supabase.storage
+    .from(CERTIFICATE_FILES_BUCKET)
+    .upload(path, file, { contentType: file.type });
+  return error ? { ok: false, error: error.message } : { ok: true, path };
+}
+
 function dateValue(value: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
 }
@@ -72,6 +92,7 @@ function sanitizeDraft(data: ParsedDocumentData): ParsedDocumentData {
 export function ParsedDocumentReviewForm({
   data,
   filename,
+  file = null,
   onApprove,
   onCancel,
   persistCertificate = false,
@@ -82,6 +103,8 @@ export function ParsedDocumentReviewForm({
   const [saved, setSaved] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  // Reused on "Save anyway" so the file is only uploaded once.
+  const uploadedPath = useRef<string | null>(null);
 
   useEffect(() => {
     setDraft(sanitizeDraft(data));
@@ -112,7 +135,17 @@ export function ParsedDocumentReviewForm({
       return;
     }
 
-    const savedResult = await saveCertificate(draft, { allowDuplicate: duplicateWarning !== null });
+    let fileNote = "";
+    if (file && !uploadedPath.current) {
+      const stored = await storeOriginalFile(file);
+      if (stored.ok) uploadedPath.current = stored.path;
+      else fileNote = ` The original file wasn't stored (${stored.error}).`;
+    }
+
+    const savedResult = await saveCertificate(draft, {
+      allowDuplicate: duplicateWarning !== null,
+      filePath: uploadedPath.current,
+    });
     if (!savedResult.ok) {
       if (savedResult.duplicate) {
         setDuplicateWarning(savedResult.error);
@@ -125,7 +158,7 @@ export function ParsedDocumentReviewForm({
 
     setDuplicateWarning(null);
 
-    onPersisted?.(savedResult.message);
+    onPersisted?.(savedResult.message + fileNote);
   }
 
   return (
