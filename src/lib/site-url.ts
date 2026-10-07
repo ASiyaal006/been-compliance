@@ -4,7 +4,10 @@ export function getSiteOrigin(): string {
   if (explicit) {
     return explicit.replace(/\/$/, "");
   }
-  const vercel = process.env.VERCEL_URL?.trim();
+  // Printed QR tags must keep working, so prefer the stable production domain over
+  // VERCEL_URL, which changes with every deployment.
+  const vercel =
+    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() || process.env.VERCEL_URL?.trim();
   if (vercel) {
     return `https://${vercel.replace(/\/$/, "")}`;
   }
