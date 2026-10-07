@@ -102,6 +102,7 @@ export async function fetchAllInspectionReports(): Promise<InspectionReportListI
 
 type SavedCertificateRow = {
   id: string;
+  asset_id: string | null;
   asset_name: string | null;
   serial_or_model_number: string | null;
   inspection_date: string | null;
@@ -121,7 +122,7 @@ export async function fetchSavedCertificates(): Promise<InspectionReportListItem
   const { data: rows, error } = await sb
     .from("certificates")
     .select(
-      "id, asset_name, serial_or_model_number, inspection_date, status, client_name, site_location, machinery_type, certificate_reference, examiner_notes, created_at",
+      "id, asset_id, asset_name, serial_or_model_number, inspection_date, status, client_name, site_location, machinery_type, certificate_reference, examiner_notes, created_at",
     )
     .order("inspection_date", { ascending: false, nullsFirst: false });
 
@@ -142,7 +143,7 @@ export async function fetchSavedCertificates(): Promise<InspectionReportListItem
       outcomeLabel: outcomeLabel(row.status),
       reference: row.certificate_reference?.trim() || "—",
       notesPreview: notes.length > 80 ? `${notes.slice(0, 80)}…` : notes || "—",
-      assetId: "",
+      assetId: row.asset_id ?? "",
       assetLabel:
         row.serial_or_model_number?.trim() || row.asset_name?.trim() || "Unknown asset",
       machineryType: row.machinery_type ?? "—",

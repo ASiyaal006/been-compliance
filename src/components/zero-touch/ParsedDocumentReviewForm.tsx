@@ -16,7 +16,7 @@ type ParsedDocumentReviewFormProps = {
   onCancel: () => void;
   /** When true, Approve & Save inserts a row into public.certificates. */
   persistCertificate?: boolean;
-  onPersisted?: () => void;
+  onPersisted?: (message: string) => void;
 };
 
 type ReviewField = {
@@ -125,7 +125,7 @@ export function ParsedDocumentReviewForm({
 
     setDuplicateWarning(null);
 
-    onPersisted?.();
+    onPersisted?.(savedResult.message);
   }
 
   return (
