@@ -33,16 +33,13 @@ CREATE POLICY certificate_files_insert_own ON storage.objects
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
--- Users read their own files; Been Compliance admins read all.
+-- Users read their own files (matching the certificates table, which is owner-only).
 CREATE POLICY certificate_files_select ON storage.objects
   FOR SELECT
   TO authenticated
   USING (
     bucket_id = 'certificates'
-    AND (
-      (storage.foldername(name))[1] = auth.uid()::text
-      OR public.is_been_compliance_admin()
-    )
+    AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
 CREATE POLICY certificate_files_delete ON storage.objects
@@ -50,8 +47,5 @@ CREATE POLICY certificate_files_delete ON storage.objects
   TO authenticated
   USING (
     bucket_id = 'certificates'
-    AND (
-      (storage.foldername(name))[1] = auth.uid()::text
-      OR public.is_been_compliance_admin()
-    )
+    AND (storage.foldername(name))[1] = auth.uid()::text
   );
