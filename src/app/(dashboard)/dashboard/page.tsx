@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { ExpiryBadge } from "@/components/expiry-badge";
 import { fetchRegisterAssets, type RegisterRow } from "@/lib/data/asset-queries";
+import { compareExpiry, DUE_SOON_DAYS, type ExpiryLevel, type ExpiryStatus } from "@/lib/expiry";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { withTimeout } from "@/lib/with-timeout";
 
@@ -10,7 +12,38 @@ type DashboardInspectionRow = {
   site: string;
   status: "Compliant" | "Defect" | "Monitor" | "Pending";
   due: string;
+  expiry: ExpiryStatus;
 };
+
+const EXPIRY_CARDS: {
+  level: ExpiryLevel;
+  title: string;
+  hint: string;
+  accent: string;
+  pill: string;
+}[] = [
+  {
+    level: "red",
+    title: "Expired",
+    hint: "Overdue or failed · stop use",
+    accent: "bg-danger",
+    pill: "bg-danger-bg text-danger ring-danger/15",
+  },
+  {
+    level: "yellow",
+    title: "Due soon",
+    hint: `Due within ${DUE_SOON_DAYS} days`,
+    accent: "bg-amber-500",
+    pill: "bg-amber-bg text-amber ring-amber/20",
+  },
+  {
+    level: "green",
+    title: "In date",
+    hint: `Due in more than ${DUE_SOON_DAYS} days`,
+    accent: "bg-success",
+    pill: "bg-success-bg text-success ring-success/15",
+  },
+];
 
 function mapRegister(rows: RegisterRow[]): DashboardInspectionRow[] {
   return rows.map((r) => ({
@@ -27,6 +60,7 @@ function mapRegister(rows: RegisterRow[]): DashboardInspectionRow[] {
             ? "Monitor"
             : "Pending",
     due: r.nextDueUk,
+    expiry: r.expiry,
   }));
 }
 
@@ -42,7 +76,7 @@ export default async function Home() {
   if (configured) {
     try {
       const rows = await withTimeout(fetchRegisterAssets(), "Loading assets");
-      inspections = mapRegister(rows);
+      inspections = mapRegister(rows).sort((a, b) => compareExpiry(a.expiry, b.expiry));
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to load dashboard data.";
       loadError = message;
@@ -51,19 +85,8 @@ export default async function Home() {
   }
 
   const total = inspections.length;
-  const compliant = inspections.filter((r) => r.status === "Compliant").length;
-  const defective = inspections.filter((r) => r.status === "Defect").length;
-  const pending = inspections.filter((r) => r.status === "Pending").length;
-  const decided = compliant + defective;
-  const complianceRate = decided > 0 ? ((100 * compliant) / decided).toFixed(1) : "—";
-  const complianceHint =
-    decided > 0
-      ? defective > 0
-        ? `${defective} defect${defective === 1 ? "" : "s"} on record`
-        : "Portfolio clear"
-      : total > 0
-        ? "No inspections yet"
-        : "Add assets to begin";
+  const countByLevel: Record<ExpiryLevel, number> = { red: 0, yellow: 0, green: 0, none: 0 };
+  for (const row of inspections) countByLevel[row.expiry.level] += 1;
 
   return (
     <>
@@ -120,38 +143,34 @@ export default async function Home() {
           </div>
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {EXPIRY_CARDS.map((card) => (
+            <article
+              key={card.level}
+              className="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm"
+            >
+              <div className={`absolute inset-y-0 left-0 w-1 rounded-l-xl ${card.accent}`} aria-hidden />
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-muted">{card.title}</p>
+              <p className="mt-2 text-3xl font-semibold tracking-tight text-[#002147]">
+                {formatInt(countByLevel[card.level])}
+              </p>
+              <span className={`mt-2 inline-flex w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${card.pill}`}>
+                {card.hint}
+              </span>
+            </article>
+          ))}
+
           <article className="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
             <div className="absolute inset-y-0 left-0 w-1 rounded-l-xl bg-navy" aria-hidden />
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-muted">Total assets</p>
             <p className="mt-2 text-3xl font-semibold tracking-tight text-[#002147]">{formatInt(total)}</p>
-            <p className="mt-1 text-xs text-emerald-700">
-              {configured ? "From Supabase register" : "Configure database"}
+            <p className="mt-1 text-xs text-slate-muted">
+              {!configured
+                ? "Configure database"
+                : countByLevel.none > 0
+                  ? `${countByLevel.none} with no due date yet`
+                  : "All have a due date"}
             </p>
-          </article>
-
-          <article className="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
-            <div className="absolute inset-y-0 left-0 w-1 rounded-l-xl bg-success" aria-hidden />
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
-              Compliance rate
-            </p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-[#002147]">
-              {complianceRate === "—" ? "—" : `${complianceRate}%`}
-            </p>
-            <span className="mt-2 inline-flex w-fit rounded-full bg-success-bg px-2.5 py-0.5 text-xs font-semibold text-success ring-1 ring-success/15">
-              {complianceHint}
-            </span>
-          </article>
-
-          <article className="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
-            <div className="absolute inset-y-0 left-0 w-1 rounded-l-xl bg-amber-500" aria-hidden />
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
-              Pending inspections
-            </p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-[#002147]">{formatInt(pending)}</p>
-            <span className="mt-2 inline-flex w-fit rounded-full bg-amber-bg px-2.5 py-0.5 text-xs font-semibold text-amber ring-1 ring-amber/20">
-              {pending > 0 ? "Awaiting statutory visit" : "Up to date"}
-            </span>
           </article>
         </div>
 
@@ -161,8 +180,8 @@ export default async function Home() {
         >
           <div className="flex flex-col gap-3 border-b border-slate-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-semibold text-[#002147]">Recent inspections</h2>
-              <p className="text-sm text-slate-muted">Live register · Been Compliance Platform</p>
+              <h2 className="text-base font-semibold text-[#002147]">Expiry status</h2>
+              <p className="text-sm text-slate-muted">Most urgent first · next thorough examination due</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link
@@ -181,7 +200,7 @@ export default async function Home() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[860px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80">
                   <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
@@ -199,12 +218,15 @@ export default async function Home() {
                   <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
                     Next due date
                   </th>
+                  <th className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
+                    Expiry
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {inspections.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-14 text-center text-sm text-slate-muted">
+                    <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-muted">
                       {loadError
                         ? "No assets found — check your account access or try again."
                         : configured
@@ -249,6 +271,12 @@ export default async function Home() {
                       </td>
                       <td className="whitespace-nowrap px-6 py-3.5 font-medium tabular-nums text-slate-muted">
                         {row.due}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-3.5">
+                        <div className="flex flex-col items-start gap-1">
+                          <ExpiryBadge status={row.expiry} />
+                          <span className="text-xs text-slate-muted">{row.expiry.detail}</span>
+                        </div>
                       </td>
                     </tr>
                   ))
