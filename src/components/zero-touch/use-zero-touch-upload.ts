@@ -13,6 +13,7 @@ export function useZeroTouchUpload(onParsed?: (data: ParsedDocumentData) => void
   const [error, setError] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParsedDocumentData | null>(null);
   const [filename, setFilename] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
 
   const processFile = useCallback(
     async (file: File) => {
@@ -27,6 +28,7 @@ export function useZeroTouchUpload(onParsed?: (data: ParsedDocumentData) => void
       setError(null);
       setParsed(null);
       setFilename(file.name);
+      setFile(file);
 
       try {
         const formData = new FormData();
@@ -59,6 +61,7 @@ export function useZeroTouchUpload(onParsed?: (data: ParsedDocumentData) => void
   const clearParsed = useCallback(() => {
     setParsed(null);
     setFilename(null);
+    setFile(null);
     setError(null);
     setState("idle");
     setDragActive(false);
@@ -90,6 +93,7 @@ export function useZeroTouchUpload(onParsed?: (data: ParsedDocumentData) => void
     error,
     parsed,
     filename,
+    file,
     processFile,
     processing: state === "processing",
     clearParsed,

@@ -29,6 +29,7 @@ export function ZeroTouchCapture({ upload, persistCertificate = false }: ZeroTou
       <ParsedDocumentReviewForm
         data={upload.parsed}
         filename={upload.filename}
+        file={upload.file}
         onApprove={upload.approve}
         onCancel={upload.clearParsed}
         persistCertificate={persistCertificate}

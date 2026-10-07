@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { normalizeIsoDate, parsedDocumentSchema, type ParsedDocumentData } from "@/lib/types/parsed-document";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { calculateNextInspectionDue } from "@/lib/inspection-intervals";
+import { isOwnCertificateFilePath } from "@/lib/certificate-files";
 
 export type SaveCertificateResult =
   | { ok: true; message: string }
@@ -16,7 +17,7 @@ function toDateOrNull(value: string): string | null {
 
 export async function saveCertificate(
   raw: ParsedDocumentData,
-  options: { allowDuplicate?: boolean } = {},
+  options: { allowDuplicate?: boolean; filePath?: string | null } = {},
 ): Promise<SaveCertificateResult> {
   const parsed = parsedDocumentSchema.safeParse(raw);
   if (!parsed.success) {
@@ -62,6 +63,11 @@ export async function saveCertificate(
     }
   }
 
+  const filePath = options.filePath ?? null;
+  if (filePath && !isOwnCertificateFilePath(filePath, user.id)) {
+    return { ok: false, error: "The uploaded file could not be attached." };
+  }
+
   const link = await findAssetForCertificate(supabase, data);
 
   const { error } = await supabase.from("certificates").insert({
@@ -78,6 +84,8 @@ export async function saveCertificate(
     machinery_type: data.machineryType,
     certificate_reference: data.certificateReference.trim(),
     examiner_notes: data.examinerNotes.trim(),
+    // Only sent when there is a file, so saving still works before the file migration runs.
+    ...(filePath ? { file_path: filePath } : {}),
   });
 
   if (error) {

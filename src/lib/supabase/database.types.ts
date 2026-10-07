@@ -196,6 +196,7 @@ export type Database = {
           machinery_type: CertificateMachineryType;
           certificate_reference: string;
           examiner_notes: string;
+          file_path: string | null;
         };
         Insert: {
           id?: string;
@@ -213,6 +214,7 @@ export type Database = {
           machinery_type?: CertificateMachineryType;
           certificate_reference?: string;
           examiner_notes?: string;
+          file_path?: string | null;
         };
         Update: {
           id?: string;
@@ -230,6 +232,7 @@ export type Database = {
           machinery_type?: CertificateMachineryType;
           certificate_reference?: string;
           examiner_notes?: string;
+          file_path?: string | null;
         };
         Relationships: [];
       };
