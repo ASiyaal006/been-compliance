@@ -88,7 +88,7 @@ export default async function ProductInspectionPage({ params }: Props) {
                     {order.status}
                   </span>
                 </div>
-                {order.canEdit ? <BookingStatusActions orderId={order.id} status={order.status} /> : null}
+                {order.canManage ? <BookingStatusActions orderId={order.id} status={order.status} /> : null}
               </div>
               <dl className="grid gap-x-6 gap-y-4 px-6 py-5 sm:grid-cols-2">
                 <Detail label="Inspection">{INSPECTION_STAGE_LABELS[order.stage]}</Detail>
@@ -106,6 +106,7 @@ export default async function ProductInspectionPage({ params }: Props) {
                   {order.factoryPlace ? <span className="block text-xs text-slate-muted">{order.factoryPlace}</span> : null}
                 </Detail>
                 <Detail label="Factory contact">{order.factoryContact ?? "—"}</Detail>
+                {order.contractorName ? <Detail label="Assigned inspector">{order.contractorName}</Detail> : null}
                 {order.notes ? (
                   <div className="sm:col-span-2">
                     <Detail label="Special instructions">

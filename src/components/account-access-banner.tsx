@@ -3,11 +3,14 @@ import { profileAccessError, type AppProfile } from "@/lib/supabase/auth";
 export function AccountAccessBanner({
   profile,
   profileError,
+  isContractor = false,
 }: {
   profile: AppProfile;
   profileError: string | null;
+  /** Contractors work on assigned jobs without a client link, so that warning doesn't apply. */
+  isContractor?: boolean;
 }) {
-  const accessErr = profileAccessError(profile);
+  const accessErr = isContractor ? null : profileAccessError(profile);
 
   if (!profileError && !accessErr && !profile.isFallback) {
     return null;

@@ -358,6 +358,7 @@ export type Database = {
           inspection_result: "Pass" | "Fail" | null;
           completed_at: string | null;
           started_at: string | null;
+          contractor_id: string | null;
           start_latitude: number | null;
           start_longitude: number | null;
           start_accuracy_m: number | null;
@@ -393,6 +394,7 @@ export type Database = {
           inspection_result?: "Pass" | "Fail" | null;
           completed_at?: string | null;
           started_at?: string | null;
+          contractor_id?: string | null;
           start_latitude?: number | null;
           start_longitude?: number | null;
           start_accuracy_m?: number | null;
@@ -417,6 +419,28 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      contractors: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          regions: string[];
+          approved_categories: string[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          regions?: string[];
+          approved_categories?: string[];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["contractors"]["Insert"]>;
+        Relationships: [];
       };
       defect_logs: {
         Row: {
@@ -456,7 +480,10 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      current_contractor_id: { Args: Record<string, never>; Returns: string | null };
+      find_user_by_email: { Args: { p_email: string }; Returns: { id: string; full_name: string | null }[] };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

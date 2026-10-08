@@ -3,17 +3,19 @@ import { Suspense } from "react";
 import { DbConnectionBanner } from "@/components/db-connection-banner";
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { AccountAccessBanner } from "@/components/account-access-banner";
+import { findContractorForUser } from "@/lib/contractors";
 import { requireAuthenticatedContext } from "@/lib/supabase/auth";
 
 async function DashboardChrome({ children }: { children: ReactNode }) {
-  const { user, profile, profileError } = await requireAuthenticatedContext();
+  const { supabase, user, profile, profileError } = await requireAuthenticatedContext();
+  const isContractor = !profile.isBeenAdmin && (await findContractorForUser(supabase, user.id)) !== null;
 
   return (
     <div className="grid min-h-dvh grid-cols-1 bg-slate-100 font-sans lg:grid-cols-[16rem_1fr] print:block print:min-h-0 print:bg-white">
-      <DashboardSidebar userEmail={user.email ?? ""} isBeenAdmin={profile.isBeenAdmin} />
+      <DashboardSidebar userEmail={user.email ?? ""} isBeenAdmin={profile.isBeenAdmin} isContractor={isContractor} />
       <div className="flex min-h-0 flex-col bg-slate-100 print:block print:bg-white">
         <div className="print:hidden">
-          <AccountAccessBanner profile={profile} profileError={profileError} />
+          <AccountAccessBanner profile={profile} profileError={profileError} isContractor={isContractor} />
           <Suspense fallback={null}>
             <DbConnectionBanner />
           </Suspense>

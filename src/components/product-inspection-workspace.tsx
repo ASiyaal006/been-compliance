@@ -233,7 +233,7 @@ export function ProductInspectionWorkspace(props: Props) {
           {props.cancelled ? (
             <p className="mt-1 text-sm text-slate-muted">This booking is cancelled.</p>
           ) : !props.canEdit ? (
-            <p className="mt-1 text-sm text-slate-muted">Only the person who booked this inspection can fill it in.</p>
+            <p className="mt-1 text-sm text-slate-muted">Only the person who booked this inspection or its assigned inspector can fill it in.</p>
           ) : !props.start && !props.finished ? (
             <p className="mt-1 text-sm text-slate-muted">Press Start inspection above to unlock the checklist.</p>
           ) : null}

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { findContractorForUser } from "@/lib/contractors";
 import { isMissingTableError } from "@/lib/data/pre-use-check-queries";
 import { DEFECT_PHOTOS_BUCKET } from "@/lib/defect-photos";
 import { requireAuthenticatedContext } from "@/lib/supabase/auth";
@@ -165,8 +166,12 @@ export type ProductOrderDetail = {
   checklist: ChecklistSection[];
   checklistResults: ChecklistResults;
   defects: DefectRow[];
-  /** The booking's creator or a Been admin; customers viewing their client's orders can't edit. */
+  /** May carry out the inspection: the booking's creator, a Been admin, or the assigned contractor. */
   canEdit: boolean;
+  /** May change the booking itself (confirm, cancel): its creator or a Been admin. */
+  canManage: boolean;
+  /** Assigned contractor's name; only admins and the contractor can see it. */
+  contractorName: string | null;
 };
 
 export type InspectionStart = {
@@ -189,7 +194,7 @@ function formatUkDateTime(iso: string): string {
 }
 
 const ORDER_DETAIL_COLUMNS =
-  "id, reference, product_name, stage, status, target_date, po_number, order_quantity, factory_name, factory_address, factory_city, factory_country, factory_contact, aql_inspection_level, aql_critical, aql_major, aql_minor, notes, inspection_date, inspector_name, inspection_result, completed_at, started_at, start_latitude, start_longitude, start_accuracy_m, checklist_results, created_by, product_categories ( name ), clients ( name ), inspection_templates ( checklist )";
+  "id, reference, product_name, stage, status, target_date, po_number, order_quantity, factory_name, factory_address, factory_city, factory_country, factory_contact, aql_inspection_level, aql_critical, aql_major, aql_minor, notes, inspection_date, inspector_name, inspection_result, completed_at, started_at, start_latitude, start_longitude, start_accuracy_m, checklist_results, created_by, contractor_id, product_categories ( name ), clients ( name ), contractors ( name ), inspection_templates ( checklist )";
 
 type OrderDetailRow = {
   id: string;
@@ -220,8 +225,10 @@ type OrderDetailRow = {
   start_accuracy_m: number | null;
   checklist_results: unknown;
   created_by: string;
+  contractor_id: string | null;
   product_categories: { name: string } | null;
   clients: { name: string } | null;
+  contractors: { name: string } | null;
   inspection_templates: { checklist: unknown } | null;
 };
 
@@ -241,8 +248,10 @@ export async function fetchProductOrder(
   ]);
 
   if (orderRes.error) {
-    // 42703: a column from the inspection results SQL is missing.
-    if (isMissingTableError(orderRes.error) || orderRes.error.code === "42703") return { order: null, notSetUp: true };
+    // 42703 / PGRST200: a column or the contractors table from a later SQL file is missing.
+    if (isMissingTableError(orderRes.error) || orderRes.error.code === "42703" || orderRes.error.code === "PGRST200") {
+      return { order: null, notSetUp: true };
+    }
     throw new Error(`Could not load the booking: ${orderRes.error.message}`);
   }
   if (defectsRes.error) throw new Error(`Could not load defects: ${defectsRes.error.message}`);
@@ -250,7 +259,10 @@ export async function fetchProductOrder(
   const r = orderRes.data as unknown as OrderDetailRow | null;
   if (!r) return { order: null, notSetUp: false };
 
-  const canEdit = profile.isBeenAdmin || r.created_by === user.id;
+  const canManage = profile.isBeenAdmin || r.created_by === user.id;
+  const canEdit =
+    canManage ||
+    (r.contractor_id !== null && (await findContractorForUser(supabase, user.id))?.id === r.contractor_id);
   const level = isAqlInspectionLevel(r.aql_inspection_level) ? r.aql_inspection_level : "II";
 
   return {
@@ -303,6 +315,8 @@ export async function fetchProductOrder(
         canDelete: profile.isBeenAdmin || d.created_by === user.id,
       })),
       canEdit,
+      canManage,
+      contractorName: r.contractors?.name ?? null,
     },
   };
 }

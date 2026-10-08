@@ -4,35 +4,64 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOutAction } from "@/actions/auth";
 
-const nav = [
-  { label: "Dashboard", href: "/dashboard", match: (p: string) => p === "/dashboard" },
+type NavRole = "everyone" | "admin" | "contractor";
+
+const nav: {
+  label: string;
+  href: string;
+  match: (p: string) => boolean;
+  role: NavRole;
+}[] = [
+  {
+    label: "Dashboard",
+    href: "/dashboard",
+    match: (p: string) => p === "/dashboard",
+    role: "everyone",
+  },
   {
     label: "Asset Register",
     href: "/assets",
     match: (p: string) =>
       p === "/assets" || (p.startsWith("/assets/") && p !== "/assets/new" && !p.startsWith("/inspections")),
+    role: "everyone",
   },
   {
     label: "Inspection Reports",
     href: "/inspections",
     match: (p: string) => p.startsWith("/inspections"),
+    role: "everyone",
   },
   {
     label: "Certificates",
     href: "/certificates",
     match: (p: string) => p.startsWith("/certificates"),
+    role: "everyone",
   },
   {
     label: "Product Inspections",
     href: "/product-inspections",
     match: (p: string) => p.startsWith("/product-inspections"),
+    role: "everyone",
+  },
+  {
+    label: "My jobs",
+    href: "/inspector/queue",
+    match: (p: string) => p.startsWith("/inspector"),
+    role: "contractor",
+  },
+  {
+    label: "Dispatch",
+    href: "/admin/dispatch",
+    match: (p: string) => p.startsWith("/admin"),
+    role: "admin",
   },
   {
     label: "Settings",
     href: "/settings",
     match: (p: string) => p === "/settings" || p.startsWith("/settings/"),
+    role: "everyone",
   },
-] as const;
+];
 
 function NavIconDashboard() {
   return (
@@ -119,28 +148,63 @@ function NavIconSettings() {
   );
 }
 
-const navIcons = [
-  NavIconDashboard,
-  NavIconAssets,
-  NavIconReports,
-  NavIconCertificates,
-  NavIconProducts,
-  NavIconSettings,
-];
+function NavIconJobs() {
+  return (
+    <svg className="size-5 shrink-0 opacity-90" aria-hidden fill="none" viewBox="0 0 24 24">
+      <path
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.5}
+        d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4"
+      />
+    </svg>
+  );
+}
+
+function NavIconDispatch() {
+  return (
+    <svg className="size-5 shrink-0 opacity-90" aria-hidden fill="none" viewBox="0 0 24 24">
+      <path
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.5}
+        d="M17 20h5v-2a3 3 0 0 0-5.36-1.86M17 20H7m10 0v-2c0-.66-.13-1.28-.36-1.86M7 20H2v-2a3 3 0 0 1 5.36-1.86M7 20v-2c0-.66.13-1.28.36-1.86m0 0a5 5 0 0 1 9.28 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+      />
+    </svg>
+  );
+}
+
+const navIcons: Record<string, () => React.ReactElement> = {
+  Dashboard: NavIconDashboard,
+  "Asset Register": NavIconAssets,
+  "Inspection Reports": NavIconReports,
+  Certificates: NavIconCertificates,
+  "Product Inspections": NavIconProducts,
+  "My jobs": NavIconJobs,
+  Dispatch: NavIconDispatch,
+  Settings: NavIconSettings,
+};
 
 export function DashboardSidebar({
   userEmail,
   isBeenAdmin,
+  isContractor = false,
 }: {
   userEmail: string;
   isBeenAdmin: boolean;
+  isContractor?: boolean;
 }) {
   const pathname = usePathname() ?? "/";
 
   return (
     <aside className="flex flex-col print:hidden border-b border-navy-700/50 bg-navy text-white lg:border-b-0 lg:border-r lg:border-white/10">
       <div className="flex h-16 items-center gap-2 border-b border-white/10 px-6">
-        <Link href="/dashboard" className="flex size-9 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15">
+        <Link
+          href="/dashboard"
+          className="flex size-9 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15"
+        >
           <span className="text-sm font-bold tracking-tight">B</span>
         </Link>
         <div>
@@ -150,27 +214,28 @@ export function DashboardSidebar({
       </div>
 
       <nav className="flex flex-1 flex-col gap-0.5 p-3 lg:gap-1 lg:p-4" aria-label="Primary">
-        {nav.map((item, i) => {
-          const Icon = navIcons[i]!;
-          const active = item.match(pathname);
-          const base =
-            "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors";
-          const activeCls =
-            active
+        {nav
+          .filter((item) => item.role === "everyone" || (item.role === "admin" ? isBeenAdmin : isContractor))
+          .map((item) => {
+            const Icon = navIcons[item.label] ?? NavIconDashboard;
+            const active = item.match(pathname);
+            const base =
+              "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors";
+            const activeCls = active
               ? "bg-white/[0.12] text-white shadow-inner ring-1 ring-white/[0.08] before:pointer-events-none before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full before:bg-white before:shadow-sm relative pl-4"
               : "text-white/70 hover:bg-white/[0.06] hover:text-white";
-          const content = (
-            <>
-              <Icon />
-              {item.label}
-            </>
-          );
-          return (
-            <Link key={item.label} href={item.href} className={`${base} ${activeCls}`}>
-              {content}
-            </Link>
-          );
-        })}
+            const content = (
+              <>
+                <Icon />
+                {item.label}
+              </>
+            );
+            return (
+              <Link key={item.label} href={item.href} className={`${base} ${activeCls}`}>
+                {content}
+              </Link>
+            );
+          })}
       </nav>
 
       <div className="mt-auto border-t border-white/10 p-4">
@@ -181,6 +246,8 @@ export function DashboardSidebar({
           <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200/90">
             Been Compliance Admin
           </p>
+        ) : isContractor ? (
+          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-200/90">Contractor</p>
         ) : (
           <p className="mt-0.5 text-[10px] text-white/55">Tenant access</p>
         )}
