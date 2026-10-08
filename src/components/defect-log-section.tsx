@@ -65,6 +65,7 @@ function LogDefectDialog({ orderId, sections, open, onClose }: DialogProps) {
   const [description, setDescription] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [photo, setPhoto] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,12 +76,19 @@ function LogDefectDialog({ orderId, sections, open, onClose }: DialogProps) {
     if (!open && el.open) el.close();
   }, [open]);
 
+  /** Swaps the chosen photo and its on-screen preview, freeing the old preview. */
+  function choosePhoto(file: File | null) {
+    if (preview) URL.revokeObjectURL(preview);
+    setPhoto(file);
+    setPreview(file ? URL.createObjectURL(file) : null);
+  }
+
   function reset() {
     setSeverity(null);
     setSection("");
     setDescription("");
     setQuantity("1");
-    setPhoto(null);
+    choosePhoto(null);
     setError(null);
     if (fileRef.current) fileRef.current.value = "";
   }
@@ -91,20 +99,20 @@ function LogDefectDialog({ orderId, sections, open, onClose }: DialogProps) {
   }
 
   function handlePhoto(file: File | null) {
+    // Closing the camera without taking a photo keeps the one already chosen.
+    if (!file) return;
     setError(null);
-    if (file && !isDefectPhotoType(file.type)) {
+    if (!isDefectPhotoType(file.type)) {
       setError("Use a JPG, PNG or WebP photo.");
-      setPhoto(null);
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
-    if (file && file.size > DEFECT_PHOTO_MAX_BYTES) {
+    if (file.size > DEFECT_PHOTO_MAX_BYTES) {
       setError("That photo is over 10 MB. Try a smaller one.");
-      setPhoto(null);
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
-    setPhoto(file);
+    choosePhoto(file);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -113,21 +121,28 @@ function LogDefectDialog({ orderId, sections, open, onClose }: DialogProps) {
       setError("Choose Critical, Major or Minor.");
       return;
     }
+    if (!photo) {
+      setError("Take a photo of the defect.");
+      return;
+    }
     setBusy(true);
     setError(null);
 
-    let photoPath: string | null = null;
-    if (photo) {
-      const up = await uploadPhoto(orderId, photo);
-      if (!up.ok) {
-        setBusy(false);
-        setError(up.error);
-        return;
-      }
-      photoPath = up.path;
+    const up = await uploadPhoto(orderId, photo);
+    if (!up.ok) {
+      setBusy(false);
+      setError(up.error);
+      return;
     }
 
-    const res = await createDefectLog({ orderId, severity, description, checklistSection: section, quantity, photoPath });
+    const res = await createDefectLog({
+      orderId,
+      severity,
+      description,
+      checklistSection: section,
+      quantity,
+      photoPath: up.path,
+    });
     setBusy(false);
     if (!res.ok) {
       setError(res.error);
@@ -226,9 +241,8 @@ function LogDefectDialog({ orderId, sections, open, onClose }: DialogProps) {
           </div>
 
           <div>
-            <label htmlFor="defect_photo" className={labelCls}>
-              Photo (optional)
-            </label>
+            <p className={labelCls}>Photo (required)</p>
+            {/* capture opens the rear camera straight away on phones and tablets. */}
             <input
               ref={fileRef}
               id="defect_photo"
@@ -236,8 +250,38 @@ function LogDefectDialog({ orderId, sections, open, onClose }: DialogProps) {
               accept="image/jpeg,image/png,image/webp"
               capture="environment"
               onChange={(e) => handlePhoto(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-navy hover:file:bg-slate-200"
+              className="sr-only"
             />
+            {preview ? (
+              <div className="flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={preview} alt="Defect photo to upload" className="size-24 rounded-lg border border-slate-200 object-cover" />
+                <label
+                  htmlFor="defect_photo"
+                  className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-navy hover:bg-slate-50"
+                >
+                  Retake photo
+                </label>
+              </div>
+            ) : (
+              <label
+                htmlFor="defect_photo"
+                className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center hover:border-navy/40 hover:bg-slate-100"
+              >
+                <svg className="size-8 text-navy" aria-hidden fill="none" viewBox="0 0 24 24">
+                  <path
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.8}
+                    d="M3 9a2 2 0 012-2h1.6a2 2 0 001.7-.9l.8-1.2A2 2 0 0110.8 4h2.4a2 2 0 011.7.9l.8 1.2a2 2 0 001.7.9H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                  />
+                  <circle cx="12" cy="13" r="3.5" stroke="currentColor" strokeWidth={1.8} />
+                </svg>
+                <span className="text-sm font-semibold text-navy">Take photo</span>
+                <span className="text-xs text-slate-500">Every defect needs a photo for the client report.</span>
+              </label>
+            )}
           </div>
 
           {error ? (
@@ -260,7 +304,7 @@ function LogDefectDialog({ orderId, sections, open, onClose }: DialogProps) {
             disabled={busy}
             className="rounded-lg bg-navy px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#00306a] disabled:opacity-60"
           >
-            {busy ? (photo ? "Uploading…" : "Saving…") : "Save defect"}
+            {busy ? "Uploading…" : "Save defect"}
           </button>
         </div>
       </form>
@@ -273,9 +317,11 @@ type Props = {
   sections: ChecklistSection[];
   defects: DefectRow[];
   canAdd: boolean;
+  /** Shown instead of the Log defect button while defects can't be logged yet. */
+  lockedHint?: string | null;
 };
 
-export function DefectLogSection({ orderId, sections, defects, canAdd }: Props) {
+export function DefectLogSection({ orderId, sections, defects, canAdd, lockedHint }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -317,6 +363,8 @@ export function DefectLogSection({ orderId, sections, defects, canAdd }: Props) 
             </svg>
             Log defect
           </button>
+        ) : lockedHint ? (
+          <p className="text-sm text-slate-muted">{lockedHint}</p>
         ) : null}
       </div>
 
