@@ -27,9 +27,9 @@ body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-/* QR tag sticker: hide app chrome, show only #qr-print-sheet (portaled to body) */
+/* QR tag sticker: on pages that have it, hide app chrome and print only #qr-print-sheet (portaled to body) */
 @media print {
-  body > *:not(#qr-print-sheet) {
+  body:has(> #qr-print-sheet) > *:not(#qr-print-sheet) {
     display: none !important;
   }
 
