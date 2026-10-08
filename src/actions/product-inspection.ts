@@ -22,6 +22,11 @@ type Fail = { ok: false; error: string };
 const NOT_SET_UP =
   "Inspection results aren't set up in the database yet. Run the product inspection results SQL in Supabase first.";
 
+const START_NOT_SET_UP =
+  "Start inspection isn't set up in the database yet. Run the inspection start location SQL in Supabase first.";
+
+const NOT_STARTED = "Press Start inspection first.";
+
 async function signedInContext(): Promise<{ ok: true; ctx: AuthenticatedContext } | Fail> {
   let ctx;
   try {
@@ -43,6 +48,7 @@ type OrderForEdit = {
   status: OrderStatus;
   created_by: string;
   order_quantity: number | null;
+  started_at: string | null;
   aql_inspection_level: string;
   aql_critical: number | string;
   aql_major: number | string;
@@ -56,17 +62,78 @@ async function loadEditableOrder(ctx: AuthenticatedContext, orderId: string): Pr
   const { data, error } = await ctx.supabase
     .from("inspection_orders")
     .select(
-      "status, created_by, order_quantity, aql_inspection_level, aql_critical, aql_major, aql_minor, inspection_templates ( checklist )",
+      "status, created_by, order_quantity, started_at, aql_inspection_level, aql_critical, aql_major, aql_minor, inspection_templates ( checklist )",
     )
     .eq("id", orderId)
     .maybeSingle();
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: error.code === "42703" ? START_NOT_SET_UP : error.message };
   const order = data as unknown as OrderForEdit | null;
   if (!order) return { ok: false, error: "Booking not found." };
   if (!ctx.profile.isBeenAdmin && order.created_by !== ctx.user.id) {
     return { ok: false, error: "Only the person who booked this inspection can change it." };
   }
   return { ok: true, order };
+}
+
+// ------------------------------------------------------------------------------
+// Start (time and place)
+// ------------------------------------------------------------------------------
+
+export type StartInspectionInput = {
+  orderId: string;
+  latitude: number;
+  longitude: number;
+  /** Accuracy reported by the device, in metres. */
+  accuracy: number | null;
+};
+
+/** Records where the inspector is when they start; the database stamps the time and locks both. */
+export async function startInspection(raw: StartInspectionInput): Promise<{ ok: true } | Fail> {
+  const { latitude, longitude } = raw;
+  if (
+    typeof latitude !== "number" ||
+    typeof longitude !== "number" ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    Math.abs(latitude) > 90 ||
+    Math.abs(longitude) > 180
+  ) {
+    return { ok: false, error: "Your location couldn't be read. Try again." };
+  }
+  const accuracy =
+    typeof raw.accuracy === "number" && Number.isFinite(raw.accuracy) && raw.accuracy >= 0 ? raw.accuracy : null;
+
+  const auth = await signedInContext();
+  if (!auth.ok) return auth;
+  const { ctx } = auth;
+
+  const loaded = await loadEditableOrder(ctx, raw.orderId);
+  if (!loaded.ok) return loaded;
+  const { order } = loaded;
+  if (order.status === "Report issued") return { ok: false, error: "This inspection is finished." };
+  if (order.status === "Cancelled") return { ok: false, error: "This booking is cancelled." };
+  if (order.started_at) return { ok: false, error: "This inspection has already started." };
+
+  const { data: updated, error } = await ctx.supabase
+    .from("inspection_orders")
+    .update({
+      // The database replaces this with its own clock.
+      started_at: new Date().toISOString(),
+      start_latitude: latitude,
+      start_longitude: longitude,
+      start_accuracy_m: accuracy,
+      status: order.status === "Requested" || order.status === "Confirmed" ? "In progress" : order.status,
+    })
+    .eq("id", raw.orderId)
+    .is("started_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { ok: false, error: error.code === "42703" ? START_NOT_SET_UP : error.message };
+  if (!updated) return { ok: false, error: "This inspection has already started." };
+
+  revalidateOrder(raw.orderId);
+  return { ok: true };
 }
 
 // ------------------------------------------------------------------------------
@@ -119,6 +186,7 @@ export async function saveInspection(raw: SaveInspectionInput): Promise<SaveInsp
 
   if (order.status === "Report issued") return { ok: false, error: "This inspection is finished. Reopen it to make changes." };
   if (order.status === "Cancelled") return { ok: false, error: "This booking is cancelled." };
+  if (!order.started_at) return { ok: false, error: NOT_STARTED };
 
   // Keep only answers for items on this booking's checklist.
   const checklist = parseChecklist(order.inspection_templates?.checklist);
@@ -243,7 +311,7 @@ export type CreateDefectInput = {
   description: string;
   checklistSection: string;
   quantity: string;
-  photoPath: string | null;
+  photoPath: string;
 };
 
 export async function createDefectLog(raw: CreateDefectInput): Promise<{ ok: true } | Fail> {
@@ -252,6 +320,7 @@ export async function createDefectLog(raw: CreateDefectInput): Promise<{ ok: tru
 
   if (!isDefectSeverity(raw.severity)) return { ok: false, error: "Choose Critical, Major or Minor." };
   if (!description) return { ok: false, error: "Describe the defect." };
+  if (!raw.photoPath) return { ok: false, error: "Take a photo of the defect." };
   if (!Number.isInteger(quantity) || quantity <= 0) {
     return { ok: false, error: "Number of units must be a whole number above zero." };
   }
@@ -264,11 +333,12 @@ export async function createDefectLog(raw: CreateDefectInput): Promise<{ ok: tru
   if (!loaded.ok) return loaded;
   if (loaded.order.status === "Report issued") return { ok: false, error: "This inspection is finished. Reopen it to add defects." };
   if (loaded.order.status === "Cancelled") return { ok: false, error: "This booking is cancelled." };
+  if (!loaded.order.started_at) return { ok: false, error: NOT_STARTED };
 
   const sections = parseChecklist(loaded.order.inspection_templates?.checklist);
   const checklistSection = sections.some((s) => s.key === raw.checklistSection) ? raw.checklistSection : null;
 
-  if (raw.photoPath && !isOwnDefectPhotoPath(raw.photoPath, ctx.user.id, raw.orderId)) {
+  if (!isOwnDefectPhotoPath(raw.photoPath, ctx.user.id, raw.orderId)) {
     return { ok: false, error: "The photo could not be attached." };
   }
 
@@ -282,11 +352,6 @@ export async function createDefectLog(raw: CreateDefectInput): Promise<{ ok: tru
     created_by: ctx.user.id,
   });
   if (error) return { ok: false, error: error.message };
-
-  // Logging a defect means the inspection has started.
-  if (loaded.order.status === "Requested" || loaded.order.status === "Confirmed") {
-    await ctx.supabase.from("inspection_orders").update({ status: "In progress" }).eq("id", raw.orderId);
-  }
 
   revalidateOrder(raw.orderId);
   return { ok: true };

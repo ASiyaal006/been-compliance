@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { BookingStatusActions } from "@/components/booking-status-actions";
 import { DefectLogSection } from "@/components/defect-log-section";
 import { ProductInspectionWorkspace } from "@/components/product-inspection-workspace";
+import { StartInspectionCard } from "@/components/start-inspection-card";
 import { looksLikeUuid } from "@/lib/data/asset-queries";
 import { fetchProductOrder } from "@/lib/data/product-inspection-queries";
 import { INSPECTION_STAGE_LABELS, ORDER_STATUS_STYLES, type DefectSeverity } from "@/lib/types/product-inspection";
@@ -34,6 +35,8 @@ export default async function ProductInspectionPage({ params }: Props) {
 
   const finished = order?.status === "Report issued";
   const cancelled = order?.status === "Cancelled";
+  const started = Boolean(order?.start);
+  const canWork = Boolean(order?.canEdit) && !finished && !cancelled;
 
   return (
     <>
@@ -73,7 +76,7 @@ export default async function ProductInspectionPage({ params }: Props) {
       <main className="flex-1 overflow-auto p-4 md:p-8">
         {!order ? (
           <div className="mx-auto max-w-3xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
-            Inspection results aren&apos;t set up in the database yet. Run the product inspection results SQL in Supabase first.
+            Inspections aren&apos;t fully set up in the database yet. Run the latest product inspection SQL in Supabase first.
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-6">
@@ -113,6 +116,8 @@ export default async function ProductInspectionPage({ params }: Props) {
               </dl>
             </section>
 
+            {canWork && !started ? <StartInspectionCard orderId={order.id} /> : null}
+
             <ProductInspectionWorkspace
               orderId={order.id}
               checklist={order.checklist}
@@ -127,13 +132,15 @@ export default async function ProductInspectionPage({ params }: Props) {
               cancelled={cancelled}
               inspectionResult={order.inspectionResult}
               completedAtUk={order.completedAtUk}
+              start={order.start}
             />
 
             <DefectLogSection
               orderId={order.id}
               sections={order.checklist}
               defects={order.defects}
-              canAdd={order.canEdit && !finished && !cancelled}
+              canAdd={canWork && started}
+              lockedHint={canWork && !started ? "Start the inspection to log defects." : null}
             />
           </div>
         )}

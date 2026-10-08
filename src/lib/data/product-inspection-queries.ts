@@ -160,6 +160,8 @@ export type ProductOrderDetail = {
   inspectorName: string | null;
   inspectionResult: "Pass" | "Fail" | null;
   completedAtUk: string | null;
+  /** Where and when the inspector pressed Start inspection; null until then. */
+  start: InspectionStart | null;
   checklist: ChecklistSection[];
   checklistResults: ChecklistResults;
   defects: DefectRow[];
@@ -167,8 +169,27 @@ export type ProductOrderDetail = {
   canEdit: boolean;
 };
 
+export type InspectionStart = {
+  startedAtUk: string;
+  latitude: number;
+  longitude: number;
+  accuracyM: number | null;
+};
+
+function formatUkDateTime(iso: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/London",
+    timeZoneName: "short",
+  }).format(new Date(iso));
+}
+
 const ORDER_DETAIL_COLUMNS =
-  "id, reference, product_name, stage, status, target_date, po_number, order_quantity, factory_name, factory_address, factory_city, factory_country, factory_contact, aql_inspection_level, aql_critical, aql_major, aql_minor, notes, inspection_date, inspector_name, inspection_result, completed_at, checklist_results, created_by, product_categories ( name ), clients ( name ), inspection_templates ( checklist )";
+  "id, reference, product_name, stage, status, target_date, po_number, order_quantity, factory_name, factory_address, factory_city, factory_country, factory_contact, aql_inspection_level, aql_critical, aql_major, aql_minor, notes, inspection_date, inspector_name, inspection_result, completed_at, started_at, start_latitude, start_longitude, start_accuracy_m, checklist_results, created_by, product_categories ( name ), clients ( name ), inspection_templates ( checklist )";
 
 type OrderDetailRow = {
   id: string;
@@ -193,6 +214,10 @@ type OrderDetailRow = {
   inspector_name: string | null;
   inspection_result: "Pass" | "Fail" | null;
   completed_at: string | null;
+  started_at: string | null;
+  start_latitude: number | null;
+  start_longitude: number | null;
+  start_accuracy_m: number | null;
   checklist_results: unknown;
   created_by: string;
   product_categories: { name: string } | null;
@@ -256,6 +281,15 @@ export async function fetchProductOrder(
       inspectorName: r.inspector_name,
       inspectionResult: r.inspection_result,
       completedAtUk: r.completed_at ? formatUk(r.completed_at.slice(0, 10)) : null,
+      start:
+        r.started_at && r.start_latitude !== null && r.start_longitude !== null
+          ? {
+              startedAtUk: formatUkDateTime(r.started_at),
+              latitude: r.start_latitude,
+              longitude: r.start_longitude,
+              accuracyM: r.start_accuracy_m,
+            }
+          : null,
       checklist: parseChecklist(r.inspection_templates?.checklist),
       checklistResults: parseChecklistResults(r.checklist_results),
       defects: (defectsRes.data ?? []).map((d) => ({

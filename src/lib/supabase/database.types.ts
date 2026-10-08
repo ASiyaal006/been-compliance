@@ -357,6 +357,10 @@ export type Database = {
           checklist_results: Json;
           inspection_result: "Pass" | "Fail" | null;
           completed_at: string | null;
+          started_at: string | null;
+          start_latitude: number | null;
+          start_longitude: number | null;
+          start_accuracy_m: number | null;
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -388,6 +392,10 @@ export type Database = {
           checklist_results?: Json;
           inspection_result?: "Pass" | "Fail" | null;
           completed_at?: string | null;
+          started_at?: string | null;
+          start_latitude?: number | null;
+          start_longitude?: number | null;
+          start_accuracy_m?: number | null;
           created_by?: string;
           created_at?: string;
           updated_at?: string;

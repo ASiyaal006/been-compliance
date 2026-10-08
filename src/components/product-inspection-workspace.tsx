@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { reopenInspection, saveInspection } from "@/actions/product-inspection";
 import { assessAql } from "@/lib/aql";
+import type { InspectionStart } from "@/lib/data/product-inspection-queries";
+import { formatLocation, mapsUrl } from "@/lib/inspection-location";
 import {
   CHECKLIST_ANSWERS,
   checklistItemKey,
@@ -43,6 +45,8 @@ type Props = {
   cancelled: boolean;
   inspectionResult: "Pass" | "Fail" | null;
   completedAtUk: string | null;
+  /** Null until the inspector presses Start inspection; the checklist stays locked until then. */
+  start: InspectionStart | null;
 };
 
 export function ProductInspectionWorkspace(props: Props) {
@@ -55,7 +59,7 @@ export function ProductInspectionWorkspace(props: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const readOnly = !props.canEdit || props.finished || props.cancelled;
+  const readOnly = !props.canEdit || props.finished || props.cancelled || !props.start;
 
   const allKeys = props.checklist.flatMap((s) => s.items.map((_, i) => checklistItemKey(s.key, i)));
   const answered = allKeys.filter((k) => results[k]).length;
@@ -230,6 +234,31 @@ export function ProductInspectionWorkspace(props: Props) {
             <p className="mt-1 text-sm text-slate-muted">This booking is cancelled.</p>
           ) : !props.canEdit ? (
             <p className="mt-1 text-sm text-slate-muted">Only the person who booked this inspection can fill it in.</p>
+          ) : !props.start && !props.finished ? (
+            <p className="mt-1 text-sm text-slate-muted">Press Start inspection above to unlock the checklist.</p>
+          ) : null}
+          {props.start ? (
+            <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-slate-700">
+              <svg className="size-4 shrink-0 text-emerald-700" aria-hidden fill="none" viewBox="0 0 24 24">
+                <path
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 21s-7-6.2-7-11.5A7 7 0 0112 2.5a7 7 0 017 7C19 14.8 12 21 12 21z"
+                />
+                <circle cx="12" cy="9.5" r="2.5" stroke="currentColor" strokeWidth={2} />
+              </svg>
+              <span>Started {props.start.startedAtUk} at</span>
+              <a
+                href={mapsUrl(props.start.latitude, props.start.longitude)}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-navy underline underline-offset-2"
+              >
+                {formatLocation(props.start.latitude, props.start.longitude, props.start.accuracyM)}
+              </a>
+            </p>
           ) : null}
         </div>
 

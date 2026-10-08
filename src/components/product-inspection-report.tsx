@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { PrintReportButton } from "@/components/print-report-button";
 import { assessAql } from "@/lib/aql";
 import type { ProductOrderDetail } from "@/lib/data/product-inspection-queries";
+import { formatLocation, mapsUrl } from "@/lib/inspection-location";
 import {
   INSPECTION_STAGE_LABELS,
   checklistItemKey,
@@ -65,7 +66,8 @@ function DefectGrid({
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 print:grid-cols-3">
       {defects.map((d, i) => {
-        const photo = photoUrls[d.id];
+        // The signed link is fastest; the photo route is a fallback if signing failed.
+        const photo = photoUrls[d.id] ?? (d.hasPhoto ? `/api/defects/${d.id}/photo` : null);
         const area = checklist.find((s) => s.key === d.checklistSection)?.title;
         return (
           <figure key={d.id} className="report-keep overflow-hidden rounded-lg border border-slate-200">
@@ -75,7 +77,7 @@ function DefectGrid({
               <img src={photo} alt={d.description} className="aspect-[4/3] w-full bg-slate-100 object-cover" />
             ) : (
               <div className="flex aspect-[4/3] w-full items-center justify-center bg-slate-50 text-[11px] text-slate-400">
-                No photo
+                No photo recorded
               </div>
             )}
             <figcaption className="space-y-1 p-3">
@@ -241,6 +243,35 @@ export function ProductInspectionReport({
                   <Field label="Reference">{order.reference ?? "—"}</Field>
                   <Field label="Order quantity">{order.orderQuantity?.toLocaleString("en-GB") ?? "—"}</Field>
                 </dl>
+                {order.start ? (
+                  <p className="mt-4 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] leading-snug text-emerald-900">
+                    <svg className="mt-px size-3.5 shrink-0" aria-hidden fill="none" viewBox="0 0 24 24">
+                      <path
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.2}
+                        d="M12 21s-7-6.2-7-11.5A7 7 0 0112 2.5a7 7 0 017 7C19 14.8 12 21 12 21z"
+                      />
+                      <circle cx="12" cy="9.5" r="2.5" stroke="currentColor" strokeWidth={2.2} />
+                    </svg>
+                    <span>
+                      <strong className="font-semibold">On-site check:</strong> inspection started {order.start.startedAtUk}{" "}
+                      at GPS{" "}
+                      <a
+                        href={mapsUrl(order.start.latitude, order.start.longitude)}
+                        className="font-medium underline underline-offset-2"
+                      >
+                        {formatLocation(order.start.latitude, order.start.longitude, order.start.accuracyM)}
+                      </a>
+                      , recorded by the inspector&apos;s device.
+                    </span>
+                  </p>
+                ) : (
+                  <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                    On-site check: no start location was recorded for this inspection.
+                  </p>
+                )}
               </div>
             </section>
 
