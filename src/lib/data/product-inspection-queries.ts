@@ -1,6 +1,7 @@
 import "server-only";
 
 import { isMissingTableError } from "@/lib/data/pre-use-check-queries";
+import { DEFECT_PHOTOS_BUCKET } from "@/lib/defect-photos";
 import { requireAuthenticatedContext } from "@/lib/supabase/auth";
 import {
   isAqlInspectionLevel,
@@ -270,4 +271,32 @@ export async function fetchProductOrder(
       canEdit,
     },
   };
+}
+
+/** Signed links (valid for an hour) to the defect photos of one booking, keyed by defect id. */
+export async function fetchDefectPhotoUrls(orderId: string): Promise<Record<string, string>> {
+  const { supabase } = await requireAuthenticatedContext();
+  const { data } = await supabase
+    .from("defect_logs")
+    .select("id, photo_url")
+    .eq("order_id", orderId)
+    .not("photo_url", "is", null);
+
+  const rows = (data ?? []).filter((r): r is { id: string; photo_url: string } => Boolean(r.photo_url));
+  if (rows.length === 0) return {};
+
+  const { data: signed } = await supabase.storage
+    .from(DEFECT_PHOTOS_BUCKET)
+    .createSignedUrls(
+      rows.map((r) => r.photo_url),
+      60 * 60,
+    );
+
+  const byPath = new Map((signed ?? []).filter((s) => s.signedUrl && s.path).map((s) => [s.path as string, s.signedUrl]));
+  const out: Record<string, string> = {};
+  for (const r of rows) {
+    const url = byPath.get(r.photo_url);
+    if (url) out[r.id] = url;
+  }
+  return out;
 }

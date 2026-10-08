@@ -48,9 +48,26 @@ export default async function ProductInspectionPage({ params }: Props) {
           Bookings
         </Link>
         <span className="hidden h-6 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
-        <h1 className="truncate text-lg font-semibold tracking-tight text-[#002147]">
+        <h1 className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight text-[#002147]">
           {order ? order.productName : "Product inspection"}
         </h1>
+        {order ? (
+          <Link
+            href={`/product-inspections/${order.id}/report`}
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#00306a]"
+          >
+            <svg className="size-4" aria-hidden fill="none" viewBox="0 0 24 24">
+              <path
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12h6m-6 4h6M7 4h7l5 5v11a1 1 0 01-1 1H7a1 1 0 01-1-1V5a1 1 0 011-1z"
+              />
+            </svg>
+            {finished ? "View report" : "Preview report"}
+          </Link>
+        ) : null}
       </header>
 
       <main className="flex-1 overflow-auto p-4 md:p-8">
