@@ -81,10 +81,10 @@ export default async function ProductInspectionsPage({
             ) : null}
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80">
-                  {["Target date", "Stage", "Product", "Client", "Factory", "Status"].map((h) => (
+                  {["Target date", "Stage", "Product", "Client", "Factory", "Status", ""].map((h) => (
                     <th key={h} className="px-6 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-muted">
                       {h}
                     </th>
@@ -94,7 +94,7 @@ export default async function ProductInspectionsPage({
               <tbody className="divide-y divide-slate-100">
                 {orders.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-muted">
+                    <td colSpan={7} className="px-6 py-12 text-center text-sm text-slate-muted">
                       No inspection bookings yet.{" "}
                       {!notSetUp ? (
                         <Link
@@ -140,6 +140,17 @@ export default async function ProductInspectionsPage({
                             {o.inspectionResult}
                           </span>
                         ) : null}
+                      </td>
+                      <td className="px-6 py-3.5 text-right">
+                        <Link
+                          href={`/product-inspections/${o.id}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-navy shadow-sm hover:bg-slate-50"
+                        >
+                          {o.status === "Report issued" ? "View" : "Open"}
+                          <svg className="size-3.5" aria-hidden fill="none" viewBox="0 0 24 24">
+                            <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </Link>
                       </td>
                     </tr>
                   ))
