@@ -1,18 +1,10 @@
 import Link from "next/link";
 import { fetchProductOrders } from "@/lib/data/product-inspection-queries";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import type { OrderStatus } from "@/lib/types/product-inspection";
+import { ORDER_STATUS_STYLES } from "@/lib/types/product-inspection";
 import { withTimeout } from "@/lib/with-timeout";
 
 type SearchParams = Record<string, string | string[] | undefined>;
-
-const statusStyles: Record<OrderStatus, string> = {
-  Requested: "bg-amber-100 text-amber-900",
-  Confirmed: "bg-sky-100 text-sky-900",
-  "In progress": "bg-indigo-100 text-indigo-900",
-  "Report issued": "bg-emerald-100 text-emerald-900",
-  Cancelled: "bg-slate-100 text-slate-600",
-};
 
 export default async function ProductInspectionsPage({
   searchParams,
@@ -122,7 +114,12 @@ export default async function ProductInspectionsPage({
                       </td>
                       <td className="px-6 py-3.5 font-mono text-[13px] font-semibold text-[#002147]">{o.stage}</td>
                       <td className="px-6 py-3.5">
-                        <p className="font-medium text-[#002147]">{o.productName}</p>
+                        <Link
+                          href={`/product-inspections/${o.id}`}
+                          className="font-medium text-[#002147] underline-offset-2 hover:text-navy hover:underline"
+                        >
+                          {o.productName}
+                        </Link>
                         <p className="text-xs text-slate-muted">
                           {o.categoryName}
                           {o.reference ? ` · Ref ${o.reference}` : ""}
@@ -131,9 +128,18 @@ export default async function ProductInspectionsPage({
                       <td className="px-6 py-3.5 text-slate-muted">{o.clientName ?? "—"}</td>
                       <td className="px-6 py-3.5 text-slate-muted">{o.factory}</td>
                       <td className="whitespace-nowrap px-6 py-3.5">
-                        <span className={`rounded px-2 py-0.5 text-xs font-semibold ${statusStyles[o.status] ?? ""}`}>
+                        <span className={`rounded px-2 py-0.5 text-xs font-semibold ${ORDER_STATUS_STYLES[o.status] ?? ""}`}>
                           {o.status}
                         </span>
+                        {o.inspectionResult ? (
+                          <span
+                            className={`ml-1.5 rounded px-2 py-0.5 text-xs font-bold uppercase ${
+                              o.inspectionResult === "Pass" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+                            }`}
+                          >
+                            {o.inspectionResult}
+                          </span>
+                        ) : null}
                       </td>
                     </tr>
                   ))
