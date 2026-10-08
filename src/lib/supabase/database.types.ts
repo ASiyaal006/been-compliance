@@ -1,4 +1,5 @@
 import type { MachineryTypeDb } from "@/lib/types/machinery";
+import type { DefectSeverity, InspectionStage, OrderStatus } from "@/lib/types/product-inspection";
 
 export type MachineryType = MachineryTypeDb;
 export type InspectionOutcome = "Pass" | "Fail" | "Monitor" | "Compliant" | "Defect";
@@ -277,6 +278,160 @@ export type Database = {
             columns: ["asset_id"];
             isOneToOne: false;
             referencedRelation: "assets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      product_categories: {
+        Row: { id: string; name: string; sort_order: number; created_at: string; updated_at: string };
+        Insert: { id?: string; name: string; sort_order?: number; created_at?: string; updated_at?: string };
+        Update: { id?: string; name?: string; sort_order?: number; created_at?: string; updated_at?: string };
+        Relationships: [];
+      };
+      inspection_templates: {
+        Row: {
+          id: string;
+          category_id: string;
+          name: string;
+          version: number;
+          is_active: boolean;
+          checklist: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          category_id: string;
+          name: string;
+          version?: number;
+          is_active?: boolean;
+          checklist?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          category_id?: string;
+          name?: string;
+          version?: number;
+          is_active?: boolean;
+          checklist?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "inspection_templates_category_id_fkey";
+            columns: ["category_id"];
+            isOneToOne: false;
+            referencedRelation: "product_categories";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      inspection_orders: {
+        Row: {
+          id: string;
+          reference: string | null;
+          client_id: string | null;
+          category_id: string;
+          template_id: string | null;
+          stage: InspectionStage;
+          status: OrderStatus;
+          target_date: string;
+          product_name: string;
+          po_number: string | null;
+          order_quantity: number | null;
+          factory_name: string;
+          factory_address: string | null;
+          factory_city: string | null;
+          factory_country: string | null;
+          factory_contact: string | null;
+          aql_inspection_level: string;
+          aql_critical: number;
+          aql_major: number;
+          aql_minor: number;
+          notes: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          reference?: string | null;
+          client_id?: string | null;
+          category_id: string;
+          template_id?: string | null;
+          stage: InspectionStage;
+          status?: OrderStatus;
+          target_date: string;
+          product_name: string;
+          po_number?: string | null;
+          order_quantity?: number | null;
+          factory_name: string;
+          factory_address?: string | null;
+          factory_city?: string | null;
+          factory_country?: string | null;
+          factory_contact?: string | null;
+          aql_inspection_level?: string;
+          aql_critical?: number;
+          aql_major?: number;
+          aql_minor?: number;
+          notes?: string | null;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["inspection_orders"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "inspection_orders_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "inspection_orders_category_id_fkey";
+            columns: ["category_id"];
+            isOneToOne: false;
+            referencedRelation: "product_categories";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      defect_logs: {
+        Row: {
+          id: string;
+          order_id: string;
+          severity: DefectSeverity;
+          description: string;
+          checklist_section: string | null;
+          quantity: number;
+          photo_url: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          severity: DefectSeverity;
+          description: string;
+          checklist_section?: string | null;
+          quantity?: number;
+          photo_url?: string | null;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["defect_logs"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "defect_logs_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "inspection_orders";
             referencedColumns: ["id"];
           },
         ];
