@@ -92,6 +92,16 @@ export async function resolveUserProfile(
     return { profile: mapProfileRow(inserted), profileError: null };
   }
 
+  // 23505: another request (the layout and the page load in parallel) created the row first.
+  if (insertErr?.code === "23505") {
+    const { data: existing } = await supabase
+      .from("profiles")
+      .select("id, client_id, is_been_admin, full_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (existing) return { profile: mapProfileRow(existing), profileError: null };
+  }
+
   return {
     profile: fallbackProfile(user),
     profileError: insertErr?.message ?? null,
