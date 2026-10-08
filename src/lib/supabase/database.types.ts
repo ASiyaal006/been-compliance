@@ -4,6 +4,7 @@ export type MachineryType = MachineryTypeDb;
 export type InspectionOutcome = "Pass" | "Fail" | "Monitor" | "Compliant" | "Defect";
 export type CertificateStatus = "Pass" | "Fail" | "Monitor" | "Unknown";
 export type CertificateMachineryType = MachineryType | "Unknown";
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
   public: {
@@ -235,6 +236,50 @@ export type Database = {
           file_path?: string | null;
         };
         Relationships: [];
+      };
+      pre_use_checks: {
+        Row: {
+          id: string;
+          asset_id: string;
+          checked_on: string;
+          checked_by: string;
+          result: "OK" | "Fault";
+          items: Json;
+          fault_notes: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          asset_id: string;
+          checked_on: string;
+          checked_by: string;
+          result: "OK" | "Fault";
+          items?: Json;
+          fault_notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          asset_id?: string;
+          checked_on?: string;
+          checked_by?: string;
+          result?: "OK" | "Fault";
+          items?: Json;
+          fault_notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pre_use_checks_asset_id_fkey";
+            columns: ["asset_id"];
+            isOneToOne: false;
+            referencedRelation: "assets";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
     Views: Record<string, never>;
