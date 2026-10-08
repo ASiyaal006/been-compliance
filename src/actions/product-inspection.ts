@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assessAql } from "@/lib/aql";
 import { looksLikeUuid } from "@/lib/data/asset-queries";
+import { findContractorForUser } from "@/lib/contractors";
 import { DEFECT_PHOTOS_BUCKET, isOwnDefectPhotoPath } from "@/lib/defect-photos";
 import { todayUk } from "@/lib/expiry";
 import { profileAccessError, requireAuthenticatedContext, type AuthenticatedContext } from "@/lib/supabase/auth";
@@ -23,7 +24,7 @@ const NOT_SET_UP =
   "Inspection results aren't set up in the database yet. Run the product inspection results SQL in Supabase first.";
 
 const START_NOT_SET_UP =
-  "Start inspection isn't set up in the database yet. Run the inspection start location SQL in Supabase first.";
+  "Inspections aren't fully set up in the database yet. Run the latest product inspection SQL in Supabase first.";
 
 const NOT_STARTED = "Press Start inspection first.";
 
@@ -35,7 +36,8 @@ async function signedInContext(): Promise<{ ok: true; ctx: AuthenticatedContext 
     return { ok: false, error: "You must be signed in to do this." };
   }
   const accessErr = profileAccessError(ctx.profile);
-  if (accessErr) return { ok: false, error: accessErr };
+  // Contractors aren't linked to a client but can work on the jobs assigned to them.
+  if (accessErr && !(await findContractorForUser(ctx.supabase, ctx.user.id))) return { ok: false, error: accessErr };
   return { ok: true, ctx };
 }
 
@@ -47,6 +49,7 @@ function revalidateOrder(orderId: string) {
 type OrderForEdit = {
   status: OrderStatus;
   created_by: string;
+  contractor_id: string | null;
   order_quantity: number | null;
   started_at: string | null;
   aql_inspection_level: string;
@@ -56,23 +59,33 @@ type OrderForEdit = {
   inspection_templates: { checklist: unknown } | null;
 };
 
-/** Loads a booking the user may change (its creator or an admin). */
-async function loadEditableOrder(ctx: AuthenticatedContext, orderId: string): Promise<{ ok: true; order: OrderForEdit } | Fail> {
+/**
+ * Loads a booking the user may work on: its creator, an admin, or the contractor assigned to it.
+ * canManage is false for that contractor, who can carry out the inspection but not change the booking.
+ */
+async function loadEditableOrder(
+  ctx: AuthenticatedContext,
+  orderId: string,
+): Promise<{ ok: true; order: OrderForEdit; canManage: boolean } | Fail> {
   if (!looksLikeUuid(orderId)) return { ok: false, error: "Invalid booking." };
   const { data, error } = await ctx.supabase
     .from("inspection_orders")
     .select(
-      "status, created_by, order_quantity, started_at, aql_inspection_level, aql_critical, aql_major, aql_minor, inspection_templates ( checklist )",
+      "status, created_by, contractor_id, order_quantity, started_at, aql_inspection_level, aql_critical, aql_major, aql_minor, inspection_templates ( checklist )",
     )
     .eq("id", orderId)
     .maybeSingle();
   if (error) return { ok: false, error: error.code === "42703" ? START_NOT_SET_UP : error.message };
   const order = data as unknown as OrderForEdit | null;
   if (!order) return { ok: false, error: "Booking not found." };
-  if (!ctx.profile.isBeenAdmin && order.created_by !== ctx.user.id) {
-    return { ok: false, error: "Only the person who booked this inspection can change it." };
+  const canManage = ctx.profile.isBeenAdmin || order.created_by === ctx.user.id;
+  if (!canManage) {
+    const contractor = order.contractor_id ? await findContractorForUser(ctx.supabase, ctx.user.id) : null;
+    if (!contractor || contractor.id !== order.contractor_id) {
+      return { ok: false, error: "Only the person who booked this inspection or its assigned inspector can change it." };
+    }
   }
-  return { ok: true, order };
+  return { ok: true, order, canManage };
 }
 
 // ------------------------------------------------------------------------------
@@ -290,6 +303,7 @@ export async function setBookingStatus(
   if (!auth.ok) return auth;
   const loaded = await loadEditableOrder(auth.ctx, orderId);
   if (!loaded.ok) return loaded;
+  if (!loaded.canManage) return { ok: false, error: "Only the person who booked this inspection can change its status." };
   if (loaded.order.status === "In progress" || loaded.order.status === "Report issued") {
     return { ok: false, error: "This inspection has already started." };
   }
