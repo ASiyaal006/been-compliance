@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AddContractorForm, RemoveContractorButton } from "@/components/contractor-admin";
+import { AddContractorForm, RemoveContractorButton, ResendInviteButton } from "@/components/contractor-admin";
 import { fetchContractorsPage } from "@/lib/data/contractor-queries";
 import { requireAuthenticatedContext } from "@/lib/supabase/auth";
 
@@ -55,6 +55,7 @@ export default async function ContractorsPage() {
                     <p className="text-xs text-slate-500">
                       {c.categoryNames.length > 0 ? c.categoryNames.join(" · ") : "All product categories"}
                     </p>
+                    {c.invitePending ? <ResendInviteButton id={c.id} name={c.name} /> : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-4">
                     <span className="text-xs text-slate-500">

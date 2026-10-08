@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function LoginForm({ redirectTo }: { redirectTo: string }) {
@@ -8,6 +8,12 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // If Supabase sends an invite link to the site's home page instead of /auth/welcome, carry it on there.
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (/[#&](access_token|error_code)=/.test(hash)) window.location.replace(`/auth/welcome${hash}`);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

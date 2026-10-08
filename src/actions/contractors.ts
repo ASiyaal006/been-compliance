@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { inviteUser, userEmail } from "@/lib/contractor-invite";
 import { approvedFor, parseRegions } from "@/lib/contractors";
 import { looksLikeUuid } from "@/lib/data/asset-queries";
 import { requireAuthenticatedContext, type AuthenticatedContext } from "@/lib/supabase/auth";
@@ -34,7 +35,10 @@ export type AddContractorInput = {
   categoryIds: string[];
 };
 
-export async function addContractor(raw: AddContractorInput): Promise<{ ok: true } | Fail> {
+/** How the new contractor gets in: they already had a login, an invite email went out, or the admin must send `link`. */
+export type InviteOutcome = { kind: "existing" } | { kind: "emailed" } | { kind: "link"; link: string };
+
+export async function addContractor(raw: AddContractorInput): Promise<{ ok: true; invite: InviteOutcome } | Fail> {
   const email = raw.email.trim();
   const name = raw.name.trim().slice(0, 120);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Enter the contractor's login email." };
@@ -47,16 +51,17 @@ export async function addContractor(raw: AddContractorInput): Promise<{ ok: true
 
   const { data: users, error: lookupError } = await supabase.rpc("find_user_by_email", { p_email: email });
   if (lookupError) return { ok: false, error: dbError(lookupError) };
-  const found = users?.[0];
-  if (!found) {
-    return {
-      ok: false,
-      error: "No login uses that email yet. Create one in Supabase (Authentication, then Add user), then add them here.",
-    };
+  let userId = users?.[0]?.id;
+  let invite: InviteOutcome = { kind: "existing" };
+  if (!userId) {
+    const invited = await inviteUser(email, name);
+    if (!invited.ok) return invited;
+    userId = invited.userId;
+    invite = invited.emailed ? { kind: "emailed" } : { kind: "link", link: invited.link };
   }
 
   const { error } = await supabase.from("contractors").insert({
-    user_id: found.id,
+    user_id: userId,
     name,
     regions: parseRegions(raw.regions),
     approved_categories: categoryIds,
@@ -68,7 +73,30 @@ export async function addContractor(raw: AddContractorInput): Promise<{ ok: true
 
   revalidatePath("/admin/contractors");
   revalidatePath("/admin/dispatch");
-  return { ok: true };
+  return { ok: true, invite };
+}
+
+/** Sends a fresh invite to a contractor who hasn't set their password yet. */
+export async function resendInvite(contractorId: string): Promise<{ ok: true; invite: InviteOutcome } | Fail> {
+  if (!looksLikeUuid(contractorId)) return { ok: false, error: "Invalid contractor." };
+  const auth = await adminContext();
+  if (!auth.ok) return auth;
+  const { supabase } = auth.ctx;
+
+  const { data: contractor, error } = await supabase
+    .from("contractors")
+    .select("user_id, name")
+    .eq("id", contractorId)
+    .maybeSingle();
+  if (error) return { ok: false, error: dbError(error) };
+  if (!contractor) return { ok: false, error: "Contractor not found." };
+  const email = await userEmail(contractor.user_id);
+  if (!email) return { ok: false, error: "Couldn't find their login email." };
+
+  const invited = await inviteUser(email, contractor.name);
+  if (!invited.ok) return invited;
+  revalidatePath("/admin/contractors");
+  return { ok: true, invite: invited.emailed ? { kind: "emailed" } : { kind: "link", link: invited.link } };
 }
 
 export async function removeContractor(contractorId: string): Promise<{ ok: true } | Fail> {

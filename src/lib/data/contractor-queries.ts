@@ -1,5 +1,6 @@
 import "server-only";
 
+import { pendingInviteIds } from "@/lib/contractor-invite";
 import { approvedFor, coversFactory, findContractorForUser } from "@/lib/contractors";
 import { isMissingTableError } from "@/lib/data/pre-use-check-queries";
 import { requireAuthenticatedContext } from "@/lib/supabase/auth";
@@ -26,14 +27,17 @@ export type ContractorRow = {
   /** Category names; empty means all categories. */
   categoryNames: string[];
   activeJobs: number;
+  userId: string;
+  /** Invited but hasn't chosen a password yet (only filled in on the Contractors page). */
+  invitePending: boolean;
 };
 
-type ContractorDbRow = { id: string; name: string; regions: string[]; approved_categories: string[] };
+type ContractorDbRow = { id: string; user_id: string; name: string; regions: string[]; approved_categories: string[] };
 
 async function loadContractors(): Promise<{ contractors: ContractorRow[]; notSetUp: boolean }> {
   const { supabase } = await requireAuthenticatedContext();
   const [contractorsRes, categoriesRes, jobsRes] = await Promise.all([
-    supabase.from("contractors").select("id, name, regions, approved_categories").order("name"),
+    supabase.from("contractors").select("id, user_id, name, regions, approved_categories").order("name"),
     supabase.from("product_categories").select("id, name"),
     supabase
       .from("inspection_orders")
@@ -59,6 +63,8 @@ async function loadContractors(): Promise<{ contractors: ContractorRow[]; notSet
       approvedCategories: c.approved_categories ?? [],
       categoryNames: (c.approved_categories ?? []).map((id) => categoryNames.get(id) ?? "Unknown category"),
       activeJobs: jobs.get(c.id) ?? 0,
+      userId: c.user_id,
+      invitePending: false,
     })),
   };
 }
@@ -73,7 +79,12 @@ export async function fetchContractorsPage(): Promise<{
     loadContractors(),
     supabase.from("product_categories").select("id, name").order("sort_order").order("name"),
   ]);
-  return { contractors, notSetUp, categories: cats.data ?? [] };
+  const pending = await pendingInviteIds(contractors.map((c) => c.userId));
+  return {
+    contractors: contractors.map((c) => ({ ...c, invitePending: pending.has(c.userId) })),
+    notSetUp,
+    categories: cats.data ?? [],
+  };
 }
 
 export type DispatchOption = { id: string; name: string; coversRegion: boolean; activeJobs: number };
