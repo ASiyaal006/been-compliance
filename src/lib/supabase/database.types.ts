@@ -352,6 +352,11 @@ export type Database = {
           aql_major: number;
           aql_minor: number;
           notes: string | null;
+          inspection_date: string | null;
+          inspector_name: string | null;
+          checklist_results: Json;
+          inspection_result: "Pass" | "Fail" | null;
+          completed_at: string | null;
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -378,6 +383,11 @@ export type Database = {
           aql_major?: number;
           aql_minor?: number;
           notes?: string | null;
+          inspection_date?: string | null;
+          inspector_name?: string | null;
+          checklist_results?: Json;
+          inspection_result?: "Pass" | "Fail" | null;
+          completed_at?: string | null;
           created_by?: string;
           created_at?: string;
           updated_at?: string;
