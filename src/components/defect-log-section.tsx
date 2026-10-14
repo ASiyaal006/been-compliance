@@ -319,11 +319,24 @@ type Props = {
   canAdd: boolean;
   /** Shown instead of the Log defect button while defects can't be logged yet. */
   lockedHint?: string | null;
+  /** Lets a parent (the bottom action bar) open the Log defect dialog. */
+  dialogOpen?: boolean;
+  onDialogOpenChange?: (open: boolean) => void;
 };
 
-export function DefectLogSection({ orderId, sections, defects, canAdd, lockedHint }: Props) {
+export function DefectLogSection({
+  orderId,
+  sections,
+  defects,
+  canAdd,
+  lockedHint,
+  dialogOpen,
+  onDialogOpenChange,
+}: Props) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = dialogOpen ?? ownOpen;
+  const setOpen = onDialogOpenChange ?? setOwnOpen;
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const sectionTitles = new Map(sections.map((s) => [s.key, s.title]));

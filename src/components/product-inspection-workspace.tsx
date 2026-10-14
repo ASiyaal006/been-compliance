@@ -6,6 +6,7 @@ import { reopenInspection, saveInspection } from "@/actions/product-inspection";
 import { assessAql } from "@/lib/aql";
 import type { InspectionStart } from "@/lib/data/product-inspection-queries";
 import { formatLocation, mapsUrl } from "@/lib/inspection-location";
+import { useOnline } from "@/lib/use-online";
 import {
   CHECKLIST_ANSWERS,
   checklistItemKey,
@@ -47,6 +48,8 @@ type Props = {
   completedAtUk: string | null;
   /** Null until the inspector presses Start inspection; the checklist stays locked until then. */
   start: InspectionStart | null;
+  /** Opens the Log defect dialog from the bottom action bar. */
+  onAddDefect?: () => void;
 };
 
 export function ProductInspectionWorkspace(props: Props) {
@@ -58,6 +61,7 @@ export function ProductInspectionWorkspace(props: Props) {
   const [busy, setBusy] = useState<"save" | "finish" | "reopen" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const online = useOnline();
 
   const readOnly = !props.canEdit || props.finished || props.cancelled || !props.start;
 
@@ -91,7 +95,7 @@ export function ProductInspectionWorkspace(props: Props) {
   }
 
   async function submit(complete: boolean) {
-    if (complete && !window.confirm("Finish this inspection and record the result? You can reopen it later if needed.")) {
+    if (complete && !window.confirm("Submit the report and record the result? You can reopen it later if needed.")) {
       return;
     }
     setBusy(complete ? "finish" : "save");
@@ -403,28 +407,46 @@ export function ProductInspectionWorkspace(props: Props) {
         </div>
 
         {!readOnly ? (
-          <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50/80 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
-            {saved ? (
-              <span className="text-sm text-emerald-800 sm:mr-auto" role="status">
-                Progress saved.
-              </span>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => submit(false)}
-              disabled={busy !== null}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-            >
-              {busy === "save" ? "Saving…" : "Save progress"}
-            </button>
-            <button
-              type="button"
-              onClick={() => submit(true)}
-              disabled={busy !== null}
-              className="rounded-lg bg-navy px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#00306a] disabled:opacity-60"
-            >
-              {busy === "finish" ? "Finishing…" : "Finish inspection"}
-            </button>
+          // Fixed to the bottom of the screen so the main actions are always under the inspector's thumb.
+          <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(15,23,42,0.08)] backdrop-blur lg:left-64 print:hidden">
+            <div className="mx-auto max-w-3xl">
+              {saved ? (
+                <p className="mb-2 text-center text-sm text-emerald-800 sm:text-left" role="status">
+                  Progress saved.
+                </p>
+              ) : null}
+              <div className="grid grid-cols-[1fr_1fr_1.4fr] gap-2 sm:flex sm:justify-end">
+                {props.onAddDefect ? (
+                  <button
+                    type="button"
+                    onClick={props.onAddDefect}
+                    disabled={busy !== null || !online}
+                    className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border-2 border-navy bg-white px-2 py-3 text-sm font-semibold text-navy hover:bg-slate-50 disabled:opacity-50 sm:mr-auto sm:px-4 sm:py-2.5"
+                  >
+                    <svg className="hidden size-4 shrink-0 sm:block" aria-hidden fill="none" viewBox="0 0 24 24">
+                      <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add defect
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => submit(false)}
+                  disabled={busy !== null || !online}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:px-4 sm:py-2.5"
+                >
+                  {busy === "save" ? "Saving…" : "Save"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => submit(true)}
+                  disabled={busy !== null || !online}
+                  className="rounded-xl bg-navy px-3 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#00306a] disabled:opacity-50 sm:px-5 sm:py-2.5"
+                >
+                  {busy === "finish" ? "Submitting…" : "Submit report"}
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
       </section>

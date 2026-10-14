@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "db:verify": "node scripts/verify-supabase.mjs"
@@ -14,6 +14,7 @@
     "@ai-sdk/openai": "^3.0.72",
     "@ai-sdk/react": "^3.0.209",
     "@react-pdf/renderer": "^4.5.1",
+    "@serwist/next": "9.5.13",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.1",
     "ai": "^6.0.207",
@@ -22,6 +23,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "server-only": "^0.0.1",
+    "serwist": "9.5.13",
     "zod": "^4.4.3"
   },
   "devDependencies": {
