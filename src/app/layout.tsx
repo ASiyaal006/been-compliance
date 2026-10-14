@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -16,6 +16,15 @@ export const metadata: Metadata = {
   title: "Been Compliance | Operations Dashboard",
   description:
     "Testing, Inspection, Certification & Compliance platform for TICC professionals.",
+  applicationName: "Been Compliance",
+  // Lets inspectors add the app to their home screen and open it full screen.
+  appleWebApp: { capable: true, title: "Been", statusBarStyle: "default" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#002147",
+  // Lets fixed bars reach the screen edge; padding uses env(safe-area-inset-*) to avoid the notch.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

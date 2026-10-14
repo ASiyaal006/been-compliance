@@ -3,8 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { BookingStatusActions } from "@/components/booking-status-actions";
-import { DefectLogSection } from "@/components/defect-log-section";
-import { ProductInspectionWorkspace } from "@/components/product-inspection-workspace";
+import { ProductInspectionExecution } from "@/components/product-inspection-execution";
 import { StartInspectionCard } from "@/components/start-inspection-card";
 import { looksLikeUuid } from "@/lib/data/asset-queries";
 import { fetchProductOrder } from "@/lib/data/product-inspection-queries";
@@ -119,29 +118,30 @@ export default async function ProductInspectionPage({ params }: Props) {
 
             {canWork && !started ? <StartInspectionCard orderId={order.id} /> : null}
 
-            <ProductInspectionWorkspace
-              orderId={order.id}
-              checklist={order.checklist}
-              initialResults={order.checklistResults}
-              initialInspectionDate={order.inspectionDate}
-              initialInspectorName={order.inspectorName}
-              initialOrderQuantity={order.orderQuantity}
-              aql={order.aql}
-              defectCounts={defectCounts}
-              canEdit={order.canEdit}
-              finished={finished}
-              cancelled={cancelled}
-              inspectionResult={order.inspectionResult}
-              completedAtUk={order.completedAtUk}
-              start={order.start}
-            />
-
-            <DefectLogSection
-              orderId={order.id}
-              sections={order.checklist}
-              defects={order.defects}
-              canAdd={canWork && started}
-              lockedHint={canWork && !started ? "Start the inspection to log defects." : null}
+            <ProductInspectionExecution
+              workspace={{
+                orderId: order.id,
+                checklist: order.checklist,
+                initialResults: order.checklistResults,
+                initialInspectionDate: order.inspectionDate,
+                initialInspectorName: order.inspectorName,
+                initialOrderQuantity: order.orderQuantity,
+                aql: order.aql,
+                defectCounts,
+                canEdit: order.canEdit,
+                finished,
+                cancelled,
+                inspectionResult: order.inspectionResult,
+                completedAtUk: order.completedAtUk,
+                start: order.start,
+              }}
+              defects={{
+                orderId: order.id,
+                sections: order.checklist,
+                defects: order.defects,
+                canAdd: canWork && started,
+                lockedHint: canWork && !started ? "Start the inspection to log defects." : null,
+              }}
             />
           </div>
         )}
