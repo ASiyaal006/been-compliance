@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ExpiryBadge } from "@/components/expiry-badge";
+import { ScanAssetButton } from "@/components/scan-asset-button";
 import { fetchRegisterAssets } from "@/lib/data/asset-queries";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { withTimeout } from "@/lib/with-timeout";
@@ -73,15 +74,18 @@ export default async function AssetRegisterPage({
               <h2 className="text-base font-semibold text-[#002147]">All tracked assets</h2>
               <p className="text-sm text-slate-muted">{rows.length} assets in portfolio</p>
             </div>
-            <Link
-              href="/assets/new"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-navy px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#00306a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
-            >
-              <svg className="size-4 shrink-0" aria-hidden fill="none" viewBox="0 0 24 24">
-                <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add asset
-            </Link>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+              <ScanAssetButton />
+              <Link
+                href="/assets/new"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-navy px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#00306a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+              >
+                <svg className="size-4 shrink-0" aria-hidden fill="none" viewBox="0 0 24 24">
+                  <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add asset
+              </Link>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-sm">
