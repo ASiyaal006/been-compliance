@@ -42,3 +42,21 @@ body {
     size: auto;
   }
 }
+
+/* QR scanner reticle: sweeping line */
+@keyframes qr-scan-sweep {
+  0% { top: 8%; }
+  50% { top: 92%; }
+  100% { top: 8%; }
+}
+
+.qr-scan-line {
+  animation: qr-scan-sweep 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qr-scan-line {
+    animation: none;
+    top: 50%;
+  }
+}
