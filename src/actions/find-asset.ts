@@ -13,9 +13,6 @@ export async function findAssetByCode(rawCode: string): Promise<FindAssetResult>
   const code = rawCode.trim();
   if (!code) return { ok: false, error: "The code was empty. Try again." };
 
-  const uuid = extractAssetUuid(code);
-  if (uuid) return { ok: true, id: uuid };
-
   let ctx;
   try {
     ctx = await requireAuthenticatedContext();
@@ -24,6 +21,21 @@ export async function findAssetByCode(rawCode: string): Promise<FindAssetResult>
   }
   const accessErr = profileAccessError(ctx.profile);
   if (accessErr) return { ok: false, error: accessErr };
+
+  // QR tags carry the asset UUID. Check it exists and this login can see it,
+  // so a tag for another account's machine gets a clear message, not a 404.
+  const uuid = extractAssetUuid(code);
+  if (uuid) {
+    const { data, error } = await ctx.supabase.from("assets").select("id").eq("id", uuid).maybeSingle();
+    if (error) return { ok: false, error: "Couldn't look up the asset. Check your connection and try again." };
+    if (!data) {
+      return {
+        ok: false,
+        error: "This tag isn't for a machine in your asset register. Check you're signed in with the right account.",
+      };
+    }
+    return { ok: true, id: data.id };
+  }
 
   // Exact, case-insensitive match: escape LIKE wildcards in the scanned text.
   const pattern = code.replace(/[\\%_]/g, (c) => `\\${c}`);
