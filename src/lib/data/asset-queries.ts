@@ -10,6 +10,12 @@ import {
 } from "@/lib/types/inspection";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMachineryType, type MachineryTypeDb } from "@/lib/types/machinery";
+import {
+  inspectionTypeOf,
+  parseTestResults,
+  resultRows,
+  type InspectionType,
+} from "@/lib/types/inspection-types";
 import { getExpiryStatus, todayUk, type ExpiryStatus } from "@/lib/expiry";
 import { requireAuthenticatedContext } from "@/lib/supabase/auth";
 import type { Database } from "@/lib/supabase/database.types";
@@ -24,7 +30,7 @@ const ASSET_DETAIL_SELECT =
   "id, asset_id_serial, machinery_type, site_location, next_inspection_due, commissioning_date, swl, description, manufacture_date, clients!assets_client_id_fkey ( name, address )" as const;
 
 const INSPECTION_DETAIL_SELECT =
-  "outcome, inspection_date, reference, examiner_notes, reason_for_exam, examiner_name, examiner_qualifications, examiner_employer, defects, defect_remedy_by, test_details, next_examination_due" as const;
+  "outcome, inspection_date, reference, examiner_notes, reason_for_exam, examiner_name, examiner_qualifications, examiner_employer, defects, defect_remedy_by, test_details, inspection_type, test_results, next_examination_due" as const;
 
 type AssetListRow = Database["public"]["Tables"]["assets"]["Row"] & {
   clients: { name: string } | null;
@@ -56,6 +62,8 @@ type InspectionDetailRowDb = Pick<
   | "defects"
   | "defect_remedy_by"
   | "test_details"
+  | "inspection_type"
+  | "test_results"
   | "next_examination_due"
 >;
 
@@ -202,6 +210,9 @@ export type AssetInspectionViewModel = {
 };
 
 export type InspectionHistoryRecord = {
+  inspectionType: InspectionType;
+  /** Structured results (PUWER checks, PAT readings, load test details). */
+  results: { label: string; value: string }[];
   date: string;
   outcome: string;
   reference: string;
@@ -223,8 +234,12 @@ function mapInspectionHistory(
   inspections: (InspectionRowDb & Partial<InspectionDetailRowDb>)[],
 ): InspectionHistoryRecord[] {
   return inspections.map((i, idx) => {
-    const previous = inspections[idx + 1];
+    const type = inspectionTypeOf(i.inspection_type);
+    // "Last exam" on a report means the last one of the same kind.
+    const previous = inspections.slice(idx + 1).find((p) => inspectionTypeOf(p.inspection_type) === type);
     return {
+      inspectionType: type,
+      results: resultRows(type, parseTestResults(i.test_results)),
       date: formatUkFromIsoLocal(i.inspection_date),
       outcome: outcomeLabel(i.outcome),
       reference: i.reference ?? "—",
@@ -365,6 +380,8 @@ export function fetchLegacyInspectionViewModel(slug: string): AssetInspectionVie
     nextDueLine: legacy.due,
     timeline: [...legacy.timeline],
     inspectionHistory: legacy.timeline.map((e) => ({
+      inspectionType: "Thorough examination" as const,
+      results: [],
       date: e.date,
       outcome: e.outcome,
       reference: e.reference,

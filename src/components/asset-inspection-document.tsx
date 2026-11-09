@@ -93,7 +93,7 @@ export function AssetInspectionDocument({
           <p className="text-sm text-slate-muted">
             Record a statutory visit outcome — saved to Supabase and reflected in Inspection Reports.
           </p>
-          <AssetDetailToolbar assetId={assetId} assetLabel={model.headlineId} />
+          <AssetDetailToolbar assetId={assetId} assetLabel={model.headlineId} machineryType={model.machineryTypeLabel} />
         </div>
       ) : null}
 

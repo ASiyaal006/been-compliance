@@ -1,5 +1,6 @@
 import type { AssetInspectionViewModel, InspectionHistoryRecord } from "@/lib/data/asset-queries";
 import { buildCertificatePdfData } from "@/lib/types/certificate";
+import { INSPECTION_TYPE_CONFIG } from "@/lib/types/inspection-types";
 import { InspectionCertificateButton } from "@/components/inspection-certificate-button";
 
 function HistoryEntry({
@@ -39,6 +40,9 @@ function HistoryEntry({
                 </span>
               ) : null}
             </div>
+            <p className="mt-1 text-xs font-semibold text-[#002147]">
+              {INSPECTION_TYPE_CONFIG[entry.inspectionType].label}
+            </p>
             <p className="mt-1 font-mono text-xs font-medium text-slate-muted">{entry.reference}</p>
             <span
               className={
@@ -51,6 +55,15 @@ function HistoryEntry({
             >
               {entry.outcome}
             </span>
+            {entry.results.some((r) => r.value === "Fail") ? (
+              <p className="mt-3 text-sm leading-relaxed text-slate-700">
+                <span className="font-semibold">Failed checks:</span>{" "}
+                {entry.results
+                  .filter((r) => r.value === "Fail")
+                  .map((r) => r.label)
+                  .join(", ")}
+              </p>
+            ) : null}
             {entry.defects ? (
               <p className="mt-3 text-sm leading-relaxed text-slate-700">
                 <span className="font-semibold">Defects:</span> {entry.defects}

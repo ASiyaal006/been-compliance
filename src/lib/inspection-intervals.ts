@@ -1,4 +1,9 @@
 import type { InspectionOutcomeForm } from "@/lib/types/inspection";
+import {
+  primaryInspectionTypeFor,
+  type InspectionType,
+  type TestResults,
+} from "@/lib/types/inspection-types";
 
 /** Statutory re-inspection intervals (months from inspection_date). */
 export type StatutoryIntervalMonths = 6 | 12;
@@ -6,7 +11,7 @@ export type StatutoryIntervalMonths = 6 | 12;
 /**
  * Resolve inspection interval from machinery_type (case-insensitive substring match).
  * - LOLER (Personnel) / LOLER (Accessory) → 6 months
- * - LOLER (Standard) / PUWER / PSSR → 12 months
+ * - LOLER (Standard) / PUWER / PSSR / Electrical → 12 months
  * - Unknown (incl. plain LOLER, COSHH, Other) → 12 months
  */
 export function statutoryIntervalMonths(machineryType: string): StatutoryIntervalMonths {
@@ -67,4 +72,40 @@ export function resolveNextInspectionDueUpdate(
     return calculateNextInspectionDue(inspectionDate, machineryType);
   }
   return null;
+}
+
+/**
+ * Months until the next inspection of this kind, or null when the kind sets no due date
+ * (load tests follow the thorough examination, so they never set one).
+ */
+export function intervalMonthsForInspection(
+  type: InspectionType,
+  machineryType: string,
+  results: TestResults,
+): number | null {
+  if (type === "Load test") return null;
+  if (type === "PUWER inspection") return 12;
+  if (type === "Electrical test") {
+    const months = Number(results.retestMonths);
+    return Number.isInteger(months) && months > 0 ? months : 12;
+  }
+  return statutoryIntervalMonths(machineryType);
+}
+
+/**
+ * Next due for an inspection, and whether it should replace the asset's due date.
+ * Only the asset's main kind of inspection (e.g. PAT for electrical equipment) moves the
+ * asset's due date; a PAT test on a hoist does not reset its LOLER due date.
+ */
+export function resolveInspectionDue(
+  type: InspectionType,
+  machineryType: string,
+  inspectionDate: string,
+  outcome: InspectionOutcomeForm,
+  results: TestResults,
+): { recordDue: string | null; updatesAsset: boolean } {
+  const updatesAsset = primaryInspectionTypeFor(machineryType) === type;
+  const months = intervalMonthsForInspection(type, machineryType, results);
+  const recordDue = outcome === "Fail" || months === null ? null : addMonthsToIsoDate(inspectionDate, months);
+  return { recordDue, updatesAsset };
 }
