@@ -14,7 +14,8 @@ declare global {
 declare const self: ServiceWorkerGlobalScope;
 
 // Static files are precached; pages and API reads use the network first and fall back to the
-// last copy when offline. Saving (server actions, uploads) always needs a connection.
+// last copy when offline. Inspection saves and defects made offline wait on the phone (src/lib/offline/outbox.ts)
+// and are uploaded by the app once the connection is back.
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,

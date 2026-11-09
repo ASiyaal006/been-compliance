@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { DbConnectionBanner } from "@/components/db-connection-banner";
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
+import { OfflineBadge } from "@/components/offline-badge";
 import { AccountAccessBanner } from "@/components/account-access-banner";
 import { findContractorForUser } from "@/lib/contractors";
 import { requireAuthenticatedContext } from "@/lib/supabase/auth";
@@ -19,6 +20,7 @@ async function DashboardChrome({ children }: { children: ReactNode }) {
           <Suspense fallback={null}>
             <DbConnectionBanner />
           </Suspense>
+          <OfflineBadge />
         </div>
         {children}
       </div>
