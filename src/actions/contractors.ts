@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { inviteUser, userEmail } from "@/lib/contractor-invite";
 import { approvedFor, parseRegions } from "@/lib/contractors";
+import { sendPasswordLink } from "@/lib/password-reset";
 import { looksLikeUuid } from "@/lib/data/asset-queries";
 import { requireAuthenticatedContext, type AuthenticatedContext } from "@/lib/supabase/auth";
 
@@ -97,6 +98,30 @@ export async function resendInvite(contractorId: string): Promise<{ ok: true; in
   if (!invited.ok) return invited;
   revalidatePath("/admin/contractors");
   return { ok: true, invite: invited.emailed ? { kind: "emailed" } : { kind: "link", link: invited.link } };
+}
+
+/** Emails a contractor a link to choose a new password (for a forgotten password, or an invite link that was used up). */
+export async function sendContractorPasswordLink(
+  contractorId: string,
+): Promise<{ ok: true; invite: InviteOutcome; email: string } | Fail> {
+  if (!looksLikeUuid(contractorId)) return { ok: false, error: "Invalid contractor." };
+  const auth = await adminContext();
+  if (!auth.ok) return auth;
+  const { supabase } = auth.ctx;
+
+  const { data: contractor, error } = await supabase
+    .from("contractors")
+    .select("user_id")
+    .eq("id", contractorId)
+    .maybeSingle();
+  if (error) return { ok: false, error: dbError(error) };
+  if (!contractor) return { ok: false, error: "Contractor not found." };
+  const email = await userEmail(contractor.user_id);
+  if (!email) return { ok: false, error: "Couldn't find their login email." };
+
+  const sent = await sendPasswordLink(email, "/inspector/queue");
+  if (!sent.ok) return { ok: false, error: sent.error };
+  return { ok: true, email, invite: sent.emailed ? { kind: "emailed" } : { kind: "link", link: sent.link } };
 }
 
 export async function removeContractor(contractorId: string): Promise<{ ok: true } | Fail> {

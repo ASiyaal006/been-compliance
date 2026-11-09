@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -27,7 +28,11 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
     });
 
     if (signInError) {
-      setError(signInError.message);
+      setError(
+        signInError.code === "invalid_credentials"
+          ? "Wrong email or password. If you've forgotten your password, use “Forgot password?” to set a new one."
+          : signInError.message,
+      );
       setBusy(false);
       return;
     }
@@ -53,9 +58,17 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
         />
       </div>
       <div>
-        <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wider text-slate-muted">
-          Password
-        </label>
+        <div className="flex items-baseline justify-between gap-2">
+          <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wider text-slate-muted">
+            Password
+          </label>
+          <Link
+            href={email.trim() ? `/auth/forgot-password?email=${encodeURIComponent(email.trim())}` : "/auth/forgot-password"}
+            className="text-xs font-semibold text-navy underline-offset-2 hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <input
           id="password"
           type="password"

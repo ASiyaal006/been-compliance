@@ -20,7 +20,7 @@ function browserClient() {
 }
 
 /** Turns an invite (or password reset) link into a session, then lets the person choose a password. */
-export function SetPasswordForm({ redirectTo }: { redirectTo: string }) {
+export function SetPasswordForm({ redirectTo, reset = false }: { redirectTo: string; reset?: boolean }) {
   const [stage, setStage] = useState<Stage>({ kind: "checking" });
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -36,28 +36,33 @@ export function SetPasswordForm({ redirectTo }: { redirectTo: string }) {
       // Keep the one-time tokens out of the address bar and browser history.
       if (window.location.hash) window.history.replaceState(null, "", window.location.pathname + window.location.search);
 
+      const isReset = reset || hash.get("type") === "recovery" || query.get("type") === "recovery";
+      const expired = isReset
+        ? "This reset link has expired or has already been used. Request a new one below."
+        : "This link has expired or has already been used. Request a new password link below, or ask Been Compliance to resend your invite.";
+
       let failure: string | null = null;
       if (hash.get("error_code") || hash.get("error")) {
-        failure =
-          hash.get("error_code") === "otp_expired"
-            ? "This link has expired or has already been used. Ask Been Compliance to resend your invite."
-            : (hash.get("error_description") ?? "This link didn't work. Ask Been Compliance to resend your invite.");
+        failure = hash.get("error_code") === "otp_expired" ? expired : (hash.get("error_description") ?? expired);
       } else if (hash.get("access_token") && hash.get("refresh_token")) {
         const { error } = await supabase.auth.setSession({
           access_token: hash.get("access_token")!,
           refresh_token: hash.get("refresh_token")!,
         });
-        if (error) failure = "This link has expired or has already been used. Ask Been Compliance to resend your invite.";
+        if (error) failure = expired;
       } else if (query.get("token_hash")) {
         const type = query.get("type") === "recovery" ? "recovery" : "invite";
         const { error } = await supabase.auth.verifyOtp({ token_hash: query.get("token_hash")!, type });
-        if (error) failure = "This link has expired or has already been used. Ask Been Compliance to resend your invite.";
+        if (error) failure = expired;
       }
 
       const { data } = await supabase.auth.getUser();
       if (cancelled) return;
       if (failure || !data.user) {
-        setStage({ kind: "invalid", message: failure ?? "Open the link from your invite email to set your password." });
+        setStage({
+          kind: "invalid",
+          message: failure ?? "Open the link from your email to set your password, or request a new link below.",
+        });
         return;
       }
       setStage({ kind: "ready", email: data.user.email ?? "" });
@@ -66,7 +71,7 @@ export function SetPasswordForm({ redirectTo }: { redirectTo: string }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reset]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -99,9 +104,17 @@ export function SetPasswordForm({ redirectTo }: { redirectTo: string }) {
         <p className="rounded-lg border border-danger/20 bg-danger-bg px-3 py-2 text-sm text-danger" role="alert">
           {stage.message}
         </p>
-        <Link href="/login" className="text-sm font-semibold text-navy underline-offset-4 hover:underline">
-          Go to sign in
-        </Link>
+        <div className="flex flex-col items-center gap-2">
+          <Link
+            href="/auth/forgot-password"
+            className="rounded-lg bg-navy px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#00306a]"
+          >
+            Email me a new password link
+          </Link>
+          <Link href="/login" className="text-sm font-semibold text-navy underline-offset-4 hover:underline">
+            Go to sign in
+          </Link>
+        </div>
       </div>
     );
   }
