@@ -1,5 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["arn1"],
-  "ignoreCommand": "case \"$VERCEL_PROJECT_ID\" in prj_nkmiotnylA1I77SBDpl7LXLNC4di|prj_GAGmhKgs1TJ0SVlYejM0ERMjjYx9|prj_8WIWV7pUviwJuSLxohyZowyd17se) echo 'Old duplicate Vercel project: skipping build'; exit 0;; *) exit 1;; esac"
+  "regions": [
+    "arn1"
+  ],
+  "ignoreCommand": "case \"$VERCEL_PROJECT_ID\" in prj_nkmiotnylA1I77SBDpl7LXLNC4di|prj_GAGmhKgs1TJ0SVlYejM0ERMjjYx9|prj_8WIWV7pUviwJuSLxohyZowyd17se) echo 'Old duplicate Vercel project: skipping build'; exit 0;; *) exit 1;; esac",
+  "crons": [
+    {
+      "path": "/api/cron/due-reminders",
+      "schedule": "0 7 * * *"
+    }
+  ]
 }
