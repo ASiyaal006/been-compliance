@@ -1,29 +1,36 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { resolveNextInspectionDueUpdate } from "@/lib/inspection-intervals";
+import { resolveInspectionDue } from "@/lib/inspection-intervals";
+import { INSPECTION_OUTCOMES_FORM, type InspectionOutcomeForm } from "@/lib/types/inspection";
 import {
-  INSPECTION_OUTCOMES_FORM,
-  REASONS_FOR_EXAM,
-  type InspectionOutcomeForm,
-  type ReasonForExam,
-} from "@/lib/types/inspection";
+  DEFAULT_INSPECTION_TYPE,
+  INSPECTION_TYPE_CONFIG,
+  cleanTestResults,
+  inspectionTypesFor,
+  isInspectionType,
+  type InspectionType,
+} from "@/lib/types/inspection-types";
 import { looksLikeUuid } from "@/lib/data/asset-queries";
 import { profileAccessError, requireAuthenticatedContext } from "@/lib/supabase/auth";
 
 export type CreateInspectionInput = {
   assetId: string;
+  /** Missing on saves queued offline before inspection types existed. */
+  inspectionType?: InspectionType;
   inspectionDate: string;
   outcome: InspectionOutcomeForm;
   reference: string;
   notes: string;
-  reasonForExam: ReasonForExam;
+  reasonForExam: string;
   examinerName: string;
   examinerQualifications: string;
   examinerEmployer: string;
   defects: string;
   defectRemedyBy: string;
   testDetails: string;
+  /** Structured results for the chosen type (see INSPECTION_TYPE_CONFIG). */
+  testResults?: Record<string, string>;
   /** Set when an offline save is sent again after an earlier try whose answer never arrived. */
   retry?: boolean;
 };
@@ -56,7 +63,12 @@ export async function createInspectionRecord(
   if (!reference) {
     return { ok: false, error: "Certificate / reference number is required." };
   }
-  if (!REASONS_FOR_EXAM.includes(raw.reasonForExam)) {
+  // Saves queued offline before inspection types existed have no type: treat them as LOLER exams.
+  const type = raw.inspectionType ?? DEFAULT_INSPECTION_TYPE;
+  if (!isInspectionType(type)) {
+    return { ok: false, error: "Select the type of inspection." };
+  }
+  if (!INSPECTION_TYPE_CONFIG[type].reasons.includes(raw.reasonForExam)) {
     return { ok: false, error: "Select the reason for the examination." };
   }
   if (!examinerName) {
@@ -70,6 +82,13 @@ export async function createInspectionRecord(
   }
   if (raw.outcome === "Monitor" && !defectRemedyBy) {
     return { ok: false, error: "Enter the date by which the defect must be remedied." };
+  }
+  const cleaned = cleanTestResults(type, raw.testResults ?? {});
+  if (!cleaned.ok) {
+    return { ok: false, error: cleaned.error };
+  }
+  if (raw.outcome === "Pass" && Object.values(cleaned.results).includes("Fail")) {
+    return { ok: false, error: "One of the checks failed, so the outcome can't be Pass." };
   }
 
   let ctx;
@@ -97,6 +116,10 @@ export async function createInspectionRecord(
     return { ok: false, error: "Asset not found or you do not have access." };
   }
 
+  if (!inspectionTypesFor(asset.machinery_type).includes(type)) {
+    return { ok: false, error: `A ${INSPECTION_TYPE_CONFIG[type].label} can't be logged on this asset.` };
+  }
+
   if (raw.retry) {
     const { data: existing } = await ctx.supabase
       .from("inspections")
@@ -108,13 +131,9 @@ export async function createInspectionRecord(
     if (existing && existing.length > 0) return { ok: true };
   }
 
-  let nextDue: string | null;
+  let due: { recordDue: string | null; updatesAsset: boolean };
   try {
-    nextDue = resolveNextInspectionDueUpdate(
-      inspectionDate,
-      asset.machinery_type,
-      raw.outcome,
-    );
+    due = resolveInspectionDue(type, asset.machinery_type, inspectionDate, raw.outcome, cleaned.results);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Could not calculate next inspection due.";
     return { ok: false, error: msg };
@@ -122,6 +141,7 @@ export async function createInspectionRecord(
 
   const { error: insErr } = await ctx.supabase.from("inspections").insert({
     asset_id: assetId,
+    inspection_type: type,
     inspection_date: inspectionDate,
     outcome: raw.outcome,
     reference,
@@ -132,21 +152,24 @@ export async function createInspectionRecord(
     examiner_employer: examinerEmployer,
     defects: defects || null,
     defect_remedy_by: raw.outcome === "Pass" ? null : defectRemedyBy || null,
-    test_details: testDetails || null,
-    next_examination_due: nextDue,
+    test_details: INSPECTION_TYPE_CONFIG[type].showTestDetails ? testDetails || null : null,
+    test_results: Object.keys(cleaned.results).length ? cleaned.results : null,
+    next_examination_due: due.recordDue,
   });
 
   if (insErr) {
     return { ok: false, error: insErr.message };
   }
 
-  const { error: assetUpdateErr } = await ctx.supabase
-    .from("assets")
-    .update({ next_inspection_due: nextDue })
-    .eq("id", assetId);
+  if (due.updatesAsset) {
+    const { error: assetUpdateErr } = await ctx.supabase
+      .from("assets")
+      .update({ next_inspection_due: due.recordDue })
+      .eq("id", assetId);
 
-  if (assetUpdateErr) {
-    return { ok: false, error: `Inspection saved but asset update failed: ${assetUpdateErr.message}` };
+    if (assetUpdateErr) {
+      return { ok: false, error: `Inspection saved but asset update failed: ${assetUpdateErr.message}` };
+    }
   }
 
   revalidatePath("/inspections");

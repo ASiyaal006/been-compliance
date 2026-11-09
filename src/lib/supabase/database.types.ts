@@ -134,6 +134,8 @@ export type Database = {
           defects: string | null;
           defect_remedy_by: string | null;
           test_details: string | null;
+          inspection_type: string | null;
+          test_results: Json | null;
           next_examination_due: string | null;
           created_at: string;
         };
@@ -151,6 +153,8 @@ export type Database = {
           defects?: string | null;
           defect_remedy_by?: string | null;
           test_details?: string | null;
+          inspection_type?: string | null;
+          test_results?: Json | null;
           next_examination_due?: string | null;
           created_at?: string;
         };
@@ -168,6 +172,8 @@ export type Database = {
           defects?: string | null;
           defect_remedy_by?: string | null;
           test_details?: string | null;
+          inspection_type?: string | null;
+          test_results?: Json | null;
           next_examination_due?: string | null;
           created_at?: string;
         };

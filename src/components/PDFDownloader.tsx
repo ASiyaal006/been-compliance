@@ -7,6 +7,7 @@ import {
   type PDFDownloaderProps,
   certificateDownloadFilename,
 } from "@/lib/types/certificate";
+import { INSPECTION_TYPE_CONFIG } from "@/lib/types/inspection-types";
 
 const navy = "#002147";
 const slate = "#475569";
@@ -169,16 +170,19 @@ function isLolerReport(machineryType: string): boolean {
 function CertificateTemplate({ data }: { data: CertificatePdfData }) {
   const notes = data.examinerNotes?.trim() || "No additional examiner notes recorded.";
   const failed = /^(fail|defect)$/i.test(data.outcome);
+  const thoroughExam = data.inspectionType === "Thorough examination";
+  const config = INSPECTION_TYPE_CONFIG[data.inspectionType];
+  const kindName = thoroughExam ? "thorough exam" : data.inspectionType.toLowerCase();
 
   return (
     <Document title={`Report ${data.reference}`} author="Been Compliance">
       <Page size="A4" style={styles.page} wrap>
         <View style={styles.headerBand}>
           <Text style={styles.wordmark}>BEEN COMPLIANCE</Text>
-          <Text style={styles.title}>Report of Thorough Examination</Text>
+          <Text style={styles.title}>{data.reportTitle}</Text>
           <Text style={styles.subtitle}>
-            {isLolerReport(data.machineryType)
-              ? "Lifting Operations and Lifting Equipment Regulations 1998 · Regulation 9 and Schedule 1"
+            {!thoroughExam || isLolerReport(data.machineryType)
+              ? data.regulation
               : "Been Compliance · Testing, Inspection, Certification and Compliance"}
           </Text>
         </View>
@@ -191,9 +195,9 @@ function CertificateTemplate({ data }: { data: CertificatePdfData }) {
         {failed ? (
           <View style={styles.dangerBox}>
             <Text style={styles.dangerText}>
-              A defect involving an existing or imminent risk of serious personal injury was found. The equipment
-              must not be used until it is remedied. A copy of this report must be sent to the relevant enforcing
-              authority.
+              {thoroughExam
+                ? "A defect involving an existing or imminent risk of serious personal injury was found. The equipment must not be used until it is remedied. A copy of this report must be sent to the relevant enforcing authority."
+                : "The equipment failed this inspection and must not be used until the defects are remedied and it has been re-inspected."}
             </Text>
           </View>
         ) : null}
@@ -209,11 +213,11 @@ function CertificateTemplate({ data }: { data: CertificatePdfData }) {
         <TemplateDetailRow label="Date of manufacture" value={data.manufactureDate} />
         <TemplateDetailRow label="Regime" value={data.machineryType} />
         <TemplateDetailRow label="Safe working load" value={data.swl} />
-        <TemplateDetailRow label="Date of last thorough exam" value={data.previousExamDate} />
+        <TemplateDetailRow label={`Date of last ${kindName}`} value={data.previousExamDate} />
 
-        <Text style={styles.sectionTitle}>Examination</Text>
-        <TemplateDetailRow label="Date of examination" value={data.inspectionDate} />
-        <TemplateDetailRow label="Reason for examination" value={data.reasonForExam} />
+        <Text style={styles.sectionTitle}>{config.label}</Text>
+        <TemplateDetailRow label="Date" value={data.inspectionDate} />
+        <TemplateDetailRow label="Reason" value={data.reasonForExam} />
         <View style={styles.row}>
           <Text style={styles.label}>Outcome</Text>
           <Text style={[styles.value, outcomeStyle(data.outcome)]}>{data.outcome}</Text>
@@ -223,8 +227,24 @@ function CertificateTemplate({ data }: { data: CertificatePdfData }) {
         {data.defectRemedyBy ? (
           <TemplateDetailRow label="Defects to be remedied by" value={data.defectRemedyBy} />
         ) : null}
-        <TemplateDetailRow label="Tests carried out" value={data.testDetails} />
-        <TemplateDetailRow label="Next thorough exam due by" value={data.nextInspectionDue} />
+        {config.showTestDetails ? <TemplateDetailRow label="Tests carried out" value={data.testDetails} /> : null}
+        {data.inspectionType === "Load test" ? null : (
+          <TemplateDetailRow label={`Next ${kindName} due by`} value={data.nextInspectionDue} />
+        )}
+
+        {data.results.length > 0 ? (
+          <>
+            <Text style={styles.sectionTitle}>
+              {data.inspectionType === "PUWER inspection" ? "Checks" : "Test results"}
+            </Text>
+            {data.results.map((r) => (
+              <View key={r.label} style={styles.row} wrap={false}>
+                <Text style={styles.label}>{r.label}</Text>
+                <Text style={[styles.value, r.value === "Fail" ? styles.outcomeFail : {}]}>{r.value}</Text>
+              </View>
+            ))}
+          </>
+        ) : null}
 
         <Text style={styles.sectionTitle}>Competent person</Text>
         <TemplateDetailRow label="Examiner" value={data.examinerName} />
@@ -242,8 +262,7 @@ function CertificateTemplate({ data }: { data: CertificatePdfData }) {
         </View>
 
         <Text style={styles.footer} fixed>
-          This report is issued in connection with a statutory thorough examination. It must be read alongside
-          the full inspection file held by Been Compliance. beencompliance.com
+          {`This report is issued in connection with a statutory ${thoroughExam ? "thorough examination" : config.label}. It must be read alongside the full inspection file held by Been Compliance. beencompliance.com`}
         </Text>
       </Page>
     </Document>

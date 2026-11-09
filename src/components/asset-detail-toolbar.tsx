@@ -6,9 +6,10 @@ import { LogInspectionDialog } from "@/components/log-inspection-dialog";
 type Props = {
   assetId: string | null;
   assetLabel: string;
+  machineryType: string;
 };
 
-export function AssetDetailToolbar({ assetId, assetLabel }: Props) {
+export function AssetDetailToolbar({ assetId, assetLabel, machineryType }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   if (!assetId) return null;
@@ -35,6 +36,7 @@ export function AssetDetailToolbar({ assetId, assetLabel }: Props) {
       <LogInspectionDialog
         assetId={assetId}
         assetLabel={assetLabel}
+        machineryType={machineryType}
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
       />

@@ -1,5 +1,11 @@
+import { INSPECTION_TYPE_CONFIG, type InspectionType } from "@/lib/types/inspection-types";
+
 /** Serializable payload for client-side PDF generation (no server-only imports). */
 export type CertificatePdfData = {
+  inspectionType: InspectionType;
+  reportTitle: string;
+  regulation: string;
+  results: { label: string; value: string }[];
   reference: string;
   assetIdSerial: string;
   machineryType: string;
@@ -40,6 +46,8 @@ const NOT_RECORDED = "Not recorded";
 
 export function buildCertificatePdfData(
   record: {
+    inspectionType: InspectionType;
+    results: { label: string; value: string }[];
     date: string;
     outcome: string;
     reference: string;
@@ -56,7 +64,12 @@ export function buildCertificatePdfData(
   },
   ctx: AssetCertificateContext,
 ): CertificatePdfData {
+  const config = INSPECTION_TYPE_CONFIG[record.inspectionType];
   return {
+    inspectionType: record.inspectionType,
+    reportTitle: config.reportTitle,
+    regulation: config.regulation,
+    results: record.results,
     reference: record.reference,
     assetIdSerial: ctx.assetIdSerial,
     machineryType: ctx.machineryType,

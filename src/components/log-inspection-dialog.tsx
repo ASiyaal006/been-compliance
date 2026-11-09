@@ -1,16 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { queueAssetInspection, removeOutboxItem, sendNow } from "@/lib/offline/outbox";
 import { ZeroTouchCapture } from "@/components/zero-touch/ZeroTouchCapture";
 import { useZeroTouchUpload } from "@/components/zero-touch/use-zero-touch-upload";
+import { INSPECTION_OUTCOMES_FORM, type InspectionOutcomeForm } from "@/lib/types/inspection";
 import {
-  INSPECTION_OUTCOMES_FORM,
-  REASONS_FOR_EXAM,
-  type InspectionOutcomeForm,
-  type ReasonForExam,
-} from "@/lib/types/inspection";
+  CHECK_ANSWERS,
+  INSPECTION_TYPE_CONFIG,
+  inspectionTypesFor,
+  type InspectionType,
+} from "@/lib/types/inspection-types";
 import type { ParsedDocumentData } from "@/lib/types/parsed-document";
 
 /** Examiner details are the same on most reports, so remember them on this device. */
@@ -42,18 +43,23 @@ const inputCls =
 type Props = {
   assetId: string;
   assetLabel: string;
+  machineryType: string;
   open: boolean;
   onClose: () => void;
 };
 
-export function LogInspectionDialog({ assetId, assetLabel, open, onClose }: Props) {
+export function LogInspectionDialog({ assetId, assetLabel, machineryType, open, onClose }: Props) {
   const router = useRouter();
+  const typeChoices = useMemo(() => inspectionTypesFor(machineryType), [machineryType]);
+  const [inspectionType, setInspectionType] = useState<InspectionType>(typeChoices[0]!);
+  const [testResults, setTestResults] = useState<Record<string, string>>({});
+  const config = INSPECTION_TYPE_CONFIG[inspectionType];
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [inspectionDate, setInspectionDate] = useState("");
   const [outcome, setOutcome] = useState<InspectionOutcomeForm | "">("");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
-  const [reasonForExam, setReasonForExam] = useState<ReasonForExam | "">("");
+  const [reasonForExam, setReasonForExam] = useState("");
   const [examinerName, setExaminerName] = useState("");
   const [examinerQualifications, setExaminerQualifications] = useState("");
   const [examinerEmployer, setExaminerEmployer] = useState("");
@@ -99,6 +105,17 @@ export function LogInspectionDialog({ assetId, assetLabel, open, onClose }: Prop
     if (!open && el.open) el.close();
   }, [open]);
 
+  function changeType(next: InspectionType) {
+    setInspectionType(next);
+    setReasonForExam("");
+    setTestResults({});
+    setError(null);
+  }
+
+  function setResult(key: string, value: string) {
+    setTestResults((current) => ({ ...current, [key]: value }));
+  }
+
   function handleClose() {
     dialogRef.current?.close();
     onClose();
@@ -114,6 +131,11 @@ export function LogInspectionDialog({ assetId, assetLabel, open, onClose }: Prop
       setError("Select the reason for the examination.");
       return;
     }
+    const missingCheck = config.fields.find((f) => f.kind === "check" && f.required && !testResults[f.key]);
+    if (missingCheck) {
+      setError(`Answer "${missingCheck.label}".`);
+      return;
+    }
     setBusy(true);
     setError(null);
     // Kept on the phone first, then uploaded straight away if there's signal, or later by itself.
@@ -121,6 +143,8 @@ export function LogInspectionDialog({ assetId, assetLabel, open, onClose }: Prop
     try {
       id = await queueAssetInspection({
       assetId,
+      inspectionType,
+      testResults,
       inspectionDate,
       outcome,
       reference,
@@ -153,6 +177,7 @@ export function LogInspectionDialog({ assetId, assetLabel, open, onClose }: Prop
     setDefects("");
     setDefectRemedyBy("");
     setTestDetails("");
+    setTestResults({});
     saveExaminer({
       name: examinerName.trim(),
       qualifications: examinerQualifications.trim(),
@@ -189,6 +214,27 @@ export function LogInspectionDialog({ assetId, assetLabel, open, onClose }: Prop
       <form onSubmit={handleSubmit} className="flex flex-col">
 
         <div className="space-y-5 px-6 py-6">
+          {typeChoices.length > 1 ? (
+            <div>
+              <label htmlFor="inspection_type" className={labelCls}>
+                Type of inspection
+              </label>
+              <select
+                id="inspection_type"
+                name="inspection_type"
+                value={inspectionType}
+                onChange={(e) => changeType(e.target.value as InspectionType)}
+                className={`${inputCls} font-medium`}
+              >
+                {typeChoices.map((t) => (
+                  <option key={t} value={t}>
+                    {INSPECTION_TYPE_CONFIG[t].label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
           <div>
             <label htmlFor="inspection_date" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-muted">
               Inspection date
@@ -243,24 +289,93 @@ export function LogInspectionDialog({ assetId, assetLabel, open, onClose }: Prop
 
           <div>
             <label htmlFor="reason_for_exam" className={labelCls}>
-              Reason for examination
+              Reason for {inspectionType === "Thorough examination" ? "examination" : inspectionType.toLowerCase()}
             </label>
             <select
               id="reason_for_exam"
               name="reason_for_exam"
               required
               value={reasonForExam}
-              onChange={(e) => setReasonForExam(e.target.value as ReasonForExam)}
+              onChange={(e) => setReasonForExam(e.target.value)}
               className={`${inputCls} font-medium`}
             >
               <option value="">Select reason</option>
-              {REASONS_FOR_EXAM.map((r) => (
+              {config.reasons.map((r) => (
                 <option key={r} value={r}>
                   {r}
                 </option>
               ))}
             </select>
           </div>
+
+          {config.fields.length > 0 ? (
+            <fieldset className="space-y-4 border-t border-slate-200 pt-5">
+              <legend className="text-xs font-bold uppercase tracking-wider text-[#002147]">
+                {inspectionType === "PUWER inspection" ? "Checks" : "Test results"}
+              </legend>
+              {config.fields.map((field) => {
+                const id = `result_${field.key}`;
+                const value = testResults[field.key] ?? "";
+                return (
+                  <div key={field.key}>
+                    <label htmlFor={field.kind === "check" ? undefined : id} className={labelCls}>
+                      {field.label}
+                      {field.required ? null : " (optional)"}
+                    </label>
+                    {field.kind === "text" ? (
+                      <input
+                        id={id}
+                        type="text"
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        value={value}
+                        onChange={(e) => setResult(field.key, e.target.value)}
+                        className={inputCls}
+                      />
+                    ) : field.kind === "check" ? (
+                      <div className="flex gap-2" role="radiogroup" aria-label={field.label}>
+                        {CHECK_ANSWERS.map((answer) => (
+                          <button
+                            key={answer}
+                            type="button"
+                            role="radio"
+                            aria-checked={value === answer}
+                            onClick={() => setResult(field.key, answer)}
+                            className={`flex-1 rounded-lg border px-3 py-2 text-sm font-semibold ${
+                              value === answer
+                                ? answer === "Fail"
+                                  ? "border-red-600 bg-red-600 text-white"
+                                  : answer === "Pass"
+                                    ? "border-emerald-600 bg-emerald-600 text-white"
+                                    : "border-slate-500 bg-slate-500 text-white"
+                                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                            }`}
+                          >
+                            {answer}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <select
+                        id={id}
+                        required={field.required}
+                        value={value}
+                        onChange={(e) => setResult(field.key, e.target.value)}
+                        className={`${inputCls} font-medium`}
+                      >
+                        <option value="">Select</option>
+                        {(field.options ?? []).map((o) => (
+                          <option key={o} value={o}>
+                            {field.key === "retestMonths" ? `${o} months` : o}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                );
+              })}
+            </fieldset>
+          ) : null}
 
           {outcome === "Fail" || outcome === "Monitor" ? (
             <div className="space-y-5 rounded-lg border border-amber-200 bg-amber-50/50 p-4">
@@ -302,6 +417,7 @@ export function LogInspectionDialog({ assetId, assetLabel, open, onClose }: Prop
             </div>
           ) : null}
 
+          {config.showTestDetails ? (
           <div>
             <label htmlFor="test_details" className={labelCls}>
               Tests carried out (if any)
@@ -316,6 +432,7 @@ export function LogInspectionDialog({ assetId, assetLabel, open, onClose }: Prop
               className={inputCls}
             />
           </div>
+          ) : null}
 
           <fieldset className="space-y-4 border-t border-slate-200 pt-5">
             <legend className="text-xs font-bold uppercase tracking-wider text-[#002147]">Competent person</legend>
