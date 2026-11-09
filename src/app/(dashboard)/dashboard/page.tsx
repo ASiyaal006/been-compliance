@@ -1,7 +1,14 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { ExpiryBadge } from "@/components/expiry-badge";
 import { fetchRegisterAssets, type RegisterRow } from "@/lib/data/asset-queries";
-import { compareExpiry, DUE_SOON_DAYS, type ExpiryLevel, type ExpiryStatus } from "@/lib/expiry";
+import {
+  fetchDashboardData,
+  type DashboardData,
+  type DueItem,
+  type OpenDefect,
+} from "@/lib/data/dashboard-queries";
+import { compareExpiry, type ExpiryStatus } from "@/lib/expiry";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { withTimeout } from "@/lib/with-timeout";
 
@@ -14,36 +21,6 @@ type DashboardInspectionRow = {
   due: string;
   expiry: ExpiryStatus;
 };
-
-const EXPIRY_CARDS: {
-  level: ExpiryLevel;
-  title: string;
-  hint: string;
-  accent: string;
-  pill: string;
-}[] = [
-  {
-    level: "red",
-    title: "Expired",
-    hint: "Overdue or failed · stop use",
-    accent: "bg-danger",
-    pill: "bg-danger-bg text-danger ring-danger/15",
-  },
-  {
-    level: "yellow",
-    title: "Due soon",
-    hint: `Due within ${DUE_SOON_DAYS} days`,
-    accent: "bg-amber-500",
-    pill: "bg-amber-bg text-amber ring-amber/20",
-  },
-  {
-    level: "green",
-    title: "In date",
-    hint: `Due in more than ${DUE_SOON_DAYS} days`,
-    accent: "bg-success",
-    pill: "bg-success-bg text-success ring-success/15",
-  },
-];
 
 function mapRegister(rows: RegisterRow[]): DashboardInspectionRow[] {
   return rows.map((r) => ({
@@ -68,15 +45,143 @@ function formatInt(n: number): string {
   return n.toLocaleString("en-GB");
 }
 
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+function dueDetail(days: number): string {
+  if (days < 0) return `${plural(-days, "day")} overdue`;
+  if (days === 0) return "Due today";
+  return `Due in ${plural(days, "day")}`;
+}
+
+function KindTag({ kind }: { kind: DueItem["kind"] | OpenDefect["kind"] }) {
+  const text = kind === "product" ? "Factory" : kind === "pre-use" ? "Pre-use" : "Equipment";
+  return (
+    <span className="inline-flex rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+      {text}
+    </span>
+  );
+}
+
+function SectionShell({
+  id,
+  title,
+  subtitle,
+  accent,
+  children,
+}: {
+  id: string;
+  title: string;
+  subtitle: string;
+  accent: string;
+  children: ReactNode;
+}) {
+  return (
+    <section id={id} className="scroll-mt-20 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
+      <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 sm:px-6">
+        <span className={`size-2.5 shrink-0 rounded-full ${accent}`} aria-hidden />
+        <div>
+          <h2 className="text-base font-semibold text-[#002147]">{title}</h2>
+          <p className="text-xs text-slate-muted">{subtitle}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function DueList({ items, empty, overdue }: { items: DueItem[]; empty: string; overdue: boolean }) {
+  if (items.length === 0) {
+    return <p className="px-4 py-8 text-center text-sm text-slate-muted sm:px-6">{empty}</p>;
+  }
+  return (
+    <ul className="divide-y divide-slate-100">
+      {items.map((item) => (
+        <li key={`${item.kind}-${item.id}`}>
+          <Link
+            href={item.href}
+            className="flex items-start justify-between gap-3 px-4 py-3 transition-colors hover:bg-slate-50/80 sm:px-6"
+          >
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-[13px] font-semibold text-navy">{item.label}</span>
+                <KindTag kind={item.kind} />
+              </div>
+              <p className="mt-0.5 truncate text-sm text-slate-700">{item.what}</p>
+              <p className="truncate text-xs text-slate-muted">
+                {[item.client, item.site].filter(Boolean).join(" · ") || "—"}
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-sm font-medium tabular-nums text-slate-900">{item.dueUk}</p>
+              <p className={`text-xs font-semibold ${overdue ? "text-danger" : "text-amber"}`}>
+                {dueDetail(item.daysUntilDue)}
+              </p>
+            </div>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function DefectList({ items }: { items: OpenDefect[] }) {
+  if (items.length === 0) {
+    return <p className="px-4 py-8 text-center text-sm text-slate-muted sm:px-6">No open defects.</p>;
+  }
+  return (
+    <ul className="divide-y divide-slate-100">
+      {items.map((d) => (
+        <li key={`${d.kind}-${d.id}`}>
+          <Link
+            href={d.href}
+            className="flex items-start justify-between gap-3 px-4 py-3 transition-colors hover:bg-slate-50/80 sm:px-6"
+          >
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-[13px] font-semibold text-navy">{d.label}</span>
+                <KindTag kind={d.kind} />
+                {d.stopUse ? (
+                  <span className="inline-flex rounded-full bg-danger-bg px-2 py-0.5 text-[11px] font-semibold text-danger ring-1 ring-danger/15">
+                    Do not use
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-0.5 text-sm font-medium text-slate-900">{d.title}</p>
+              <p className="line-clamp-2 text-sm text-slate-700">{d.detail}</p>
+              {d.client ? <p className="truncate text-xs text-slate-muted">{d.client}</p> : null}
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-xs text-slate-muted">Found</p>
+              <p className="text-sm font-medium tabular-nums text-slate-900">{d.foundUk}</p>
+              {d.remedyByUk ? (
+                <p className={`text-xs font-semibold ${d.remedyOverdue ? "text-danger" : "text-amber"}`}>
+                  {d.remedyOverdue ? "Remedy overdue" : "Remedy by"} {d.remedyByUk}
+                </p>
+              ) : null}
+            </div>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default async function Home() {
   const configured = isSupabaseConfigured();
   let inspections: DashboardInspectionRow[] = [];
+  let summary: DashboardData | null = null;
   let loadError: string | null = null;
 
   if (configured) {
     try {
-      const rows = await withTimeout(fetchRegisterAssets(), "Loading assets");
+      const [rows, data] = await Promise.all([
+        withTimeout(fetchRegisterAssets(), "Loading assets"),
+        withTimeout(fetchDashboardData(), "Loading dashboard"),
+      ]);
       inspections = mapRegister(rows).sort((a, b) => compareExpiry(a.expiry, b.expiry));
+      summary = data;
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to load dashboard data.";
       loadError = message;
@@ -85,8 +190,39 @@ export default async function Home() {
   }
 
   const total = inspections.length;
-  const countByLevel: Record<ExpiryLevel, number> = { red: 0, yellow: 0, green: 0, none: 0 };
-  for (const row of inspections) countByLevel[row.expiry.level] += 1;
+  const noDate = inspections.filter((r) => r.expiry.level === "none").length;
+  const overdue = summary?.overdue ?? [];
+  const dueThisMonth = summary?.dueThisMonth ?? [];
+  const openDefects = summary?.openDefects ?? [];
+  const stopUseCount = openDefects.filter((d) => d.stopUse).length;
+  const monthLabel = summary?.monthLabel ?? "this month";
+
+  const cards = [
+    {
+      href: "#overdue",
+      title: "Overdue",
+      count: overdue.length,
+      hint: "Past their due date",
+      accent: "bg-danger",
+      tone: overdue.length > 0 ? "text-danger" : "text-[#002147]",
+    },
+    {
+      href: "#due-this-month",
+      title: "Due this month",
+      count: dueThisMonth.length,
+      hint: `Still to do in ${monthLabel}`,
+      accent: "bg-amber-500",
+      tone: "text-[#002147]",
+    },
+    {
+      href: "#open-defects",
+      title: "Open defects",
+      count: openDefects.length,
+      hint: stopUseCount > 0 ? `${stopUseCount} not safe to use` : "None stopping use",
+      accent: "bg-danger",
+      tone: openDefects.length > 0 ? "text-danger" : "text-[#002147]",
+    },
+  ];
 
   return (
     <>
@@ -143,40 +279,68 @@ export default async function Home() {
           </div>
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {EXPIRY_CARDS.map((card) => (
-            <article
-              key={card.level}
-              className="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm"
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          {cards.map((card) => (
+            <a
+              key={card.href}
+              href={card.href}
+              className="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm transition-colors hover:bg-slate-50 sm:p-6"
             >
               <div className={`absolute inset-y-0 left-0 w-1 rounded-l-xl ${card.accent}`} aria-hidden />
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-muted">{card.title}</p>
-              <p className="mt-2 text-3xl font-semibold tracking-tight text-[#002147]">
-                {formatInt(countByLevel[card.level])}
-              </p>
-              <span className={`mt-2 inline-flex w-fit rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${card.pill}`}>
-                {card.hint}
-              </span>
-            </article>
+              <p className={`mt-2 text-3xl font-semibold tracking-tight ${card.tone}`}>{formatInt(card.count)}</p>
+              <p className="mt-1 text-xs text-slate-muted">{card.hint}</p>
+            </a>
           ))}
 
-          <article className="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-6 shadow-sm">
+          <article className="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-6">
             <div className="absolute inset-y-0 left-0 w-1 rounded-l-xl bg-navy" aria-hidden />
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-muted">Total assets</p>
             <p className="mt-2 text-3xl font-semibold tracking-tight text-[#002147]">{formatInt(total)}</p>
             <p className="mt-1 text-xs text-slate-muted">
               {!configured
                 ? "Configure database"
-                : countByLevel.none > 0
-                  ? `${countByLevel.none} with no due date yet`
+                : noDate > 0
+                  ? `${noDate} with no due date yet`
                   : "All have a due date"}
             </p>
           </article>
         </div>
 
+        <div className="mt-6 grid gap-6 xl:grid-cols-2">
+          <SectionShell
+            id="overdue"
+            title="Overdue"
+            subtitle="Inspections and factory bookings past their due date, most overdue first"
+            accent="bg-danger"
+          >
+            <DueList items={overdue} overdue empty="Nothing overdue." />
+          </SectionShell>
+
+          <SectionShell
+            id="due-this-month"
+            title={`Due this month · ${monthLabel}`}
+            subtitle="From today to the end of the month, soonest first"
+            accent="bg-amber-500"
+          >
+            <DueList items={dueThisMonth} overdue={false} empty="Nothing else due this month." />
+          </SectionShell>
+        </div>
+
+        <div className="mt-6">
+          <SectionShell
+            id="open-defects"
+            title="Open defects"
+            subtitle="Failed inspections, defects with a remedy date, pre-use faults and failed factory inspections. A defect clears when the next inspection of that kind passes."
+            accent="bg-danger"
+          >
+            <DefectList items={openDefects} />
+          </SectionShell>
+        </div>
+
         <section
           id="recent-inspections"
-          className="mt-8 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm"
+          className="mt-6 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm"
         >
           <div className="flex flex-col gap-3 border-b border-slate-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
