@@ -24,6 +24,8 @@ export type CreateInspectionInput = {
   defects: string;
   defectRemedyBy: string;
   testDetails: string;
+  /** Set when an offline save is sent again after an earlier try whose answer never arrived. */
+  retry?: boolean;
 };
 
 export type CreateInspectionResult = { ok: true } | { ok: false; error: string };
@@ -93,6 +95,17 @@ export async function createInspectionRecord(
   }
   if (!asset) {
     return { ok: false, error: "Asset not found or you do not have access." };
+  }
+
+  if (raw.retry) {
+    const { data: existing } = await ctx.supabase
+      .from("inspections")
+      .select("id")
+      .eq("asset_id", assetId)
+      .eq("inspection_date", inspectionDate)
+      .eq("reference", reference)
+      .limit(1);
+    if (existing && existing.length > 0) return { ok: true };
   }
 
   let nextDue: string | null;
