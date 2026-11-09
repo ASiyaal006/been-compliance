@@ -106,10 +106,13 @@ function DefectGrid({
 export function ProductInspectionReport({
   order,
   photoUrls,
+  back,
 }: {
   order: ProductOrderDetail;
   /** Signed photo links keyed by defect id. */
   photoUrls: Record<string, string>;
+  /** Where the back link goes (defaults to the inspection workspace). */
+  back?: { href: string; label: string };
 }) {
   const found: Record<DefectSeverity, number> = { Critical: 0, Major: 0, Minor: 0 };
   for (const d of order.defects) found[d.severity] += d.quantity;
@@ -148,13 +151,13 @@ export function ProductInspectionReport({
 
       <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 shadow-sm md:px-8 print:hidden">
         <Link
-          href={`/product-inspections/${order.id}`}
+          href={back?.href ?? `/product-inspections/${order.id}`}
           className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-slate-muted transition-colors hover:text-navy"
         >
           <svg className="size-4" aria-hidden fill="none" viewBox="0 0 24 24">
             <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          Back to inspection
+          {back?.label ?? "Back to inspection"}
         </Link>
         <PrintReportButton fileName={fileName} />
       </header>
