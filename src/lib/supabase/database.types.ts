@@ -484,6 +484,41 @@ export type Database = {
           },
         ];
       };
+      due_reminders: {
+        Row: {
+          id: string;
+          asset_id: string;
+          due_date: string;
+          stage: "30_days" | "7_days" | "overdue";
+          customer_emails: string[];
+          sent_at: string;
+        };
+        Insert: {
+          id?: string;
+          asset_id: string;
+          due_date: string;
+          stage: "30_days" | "7_days" | "overdue";
+          customer_emails?: string[];
+          sent_at?: string;
+        };
+        Update: {
+          id?: string;
+          asset_id?: string;
+          due_date?: string;
+          stage?: "30_days" | "7_days" | "overdue";
+          customer_emails?: string[];
+          sent_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "due_reminders_asset_id_fkey";
+            columns: ["asset_id"];
+            isOneToOne: false;
+            referencedRelation: "assets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
