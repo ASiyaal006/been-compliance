@@ -2,15 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { createDefectLog, deleteDefectLog } from "@/actions/product-inspection";
+import { deleteDefectLog } from "@/actions/product-inspection";
 import type { DefectRow } from "@/lib/data/product-inspection-queries";
-import {
-  DEFECT_PHOTOS_BUCKET,
-  DEFECT_PHOTO_MAX_BYTES,
-  defectPhotoPath,
-  isDefectPhotoType,
-} from "@/lib/defect-photos";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { DEFECT_PHOTO_MAX_BYTES, isDefectPhotoType } from "@/lib/defect-photos";
+import { queueDefect, removeOutboxItem, retryOutboxItem, sendNow, type DefectItem } from "@/lib/offline/outbox";
 import { DEFECT_SEVERITIES, type ChecklistSection, type DefectSeverity } from "@/lib/types/product-inspection";
 
 const labelCls = "mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-muted";
@@ -28,26 +23,6 @@ const severityHints: Record<DefectSeverity, string> = {
   Major: "Customer would likely return it",
   Minor: "Small flaw, still usable",
 };
-
-async function uploadPhoto(orderId: string, file: File): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
-  const supabase = createSupabaseBrowserClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "You must be signed in to upload photos." };
-
-  const path = defectPhotoPath(user.id, orderId, file.type);
-  const { error } = await supabase.storage.from(DEFECT_PHOTOS_BUCKET).upload(path, file, { contentType: file.type });
-  if (error) {
-    return {
-      ok: false,
-      error: /bucket not found/i.test(error.message)
-        ? "Photo storage isn't set up yet. Run the product inspection results SQL in Supabase first."
-        : `The photo could not be uploaded: ${error.message}`,
-    };
-  }
-  return { ok: true, path };
-}
 
 type DialogProps = {
   orderId: string;
@@ -125,32 +100,37 @@ function LogDefectDialog({ orderId, sections, open, onClose }: DialogProps) {
       setError("Take a photo of the defect.");
       return;
     }
+    if (!description.trim()) {
+      setError("Describe the defect.");
+      return;
+    }
+    const qty = Number(quantity.trim() || "1");
+    if (!Number.isInteger(qty) || qty <= 0) {
+      setError("Number of units must be a whole number above zero.");
+      return;
+    }
     setBusy(true);
     setError(null);
 
-    const up = await uploadPhoto(orderId, photo);
-    if (!up.ok) {
+    // Kept on the phone first, then uploaded straight away if there's signal, or later by itself.
+    let id: string;
+    try {
+      id = await queueDefect(orderId, { severity, description, checklistSection: section, quantity }, photo);
+    } catch {
       setBusy(false);
-      setError(up.error);
+      setError("This phone couldn't keep the defect. Check you aren't in private browsing, then try again.");
       return;
     }
-
-    const res = await createDefectLog({
-      orderId,
-      severity,
-      description,
-      checklistSection: section,
-      quantity,
-      photoPath: up.path,
-    });
+    const outcome = await sendNow(id);
     setBusy(false);
-    if (!res.ok) {
-      setError(res.error);
+    if (outcome.status === "rejected") {
+      await removeOutboxItem(id);
+      setError(outcome.error);
       return;
     }
     reset();
     handleClose();
-    router.refresh();
+    if (outcome.status === "sent") router.refresh();
   }
 
   return (
@@ -304,11 +284,83 @@ function LogDefectDialog({ orderId, sections, open, onClose }: DialogProps) {
             disabled={busy}
             className="rounded-lg bg-navy px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#00306a] disabled:opacity-60"
           >
-            {busy ? "Uploading…" : "Save defect"}
+            {busy ? "Saving…" : "Save defect"}
           </button>
         </div>
       </form>
     </dialog>
+  );
+}
+
+/** A defect kept on this phone: shown with its own photo until it has gone up. */
+function PendingDefectRow({ item, sectionTitle }: { item: DefectItem; sectionTitle?: string }) {
+  const [preview, setPreview] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const failed = item.status === "failed";
+  const qty = Number(item.input.quantity.trim() || "1");
+
+  useEffect(() => {
+    const url = URL.createObjectURL(item.photo);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the link must be made and freed with the row
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [item.photo]);
+
+  async function remove() {
+    if (!window.confirm("Remove this defect? It hasn't been uploaded, so it will be lost.")) return;
+    await removeOutboxItem(item.id);
+  }
+
+  async function retry() {
+    setBusy(true);
+    await retryOutboxItem(item.id);
+    setBusy(false);
+  }
+
+  return (
+    <li className="flex gap-4 px-6 py-4">
+      {preview ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={preview} alt={`Photo: ${item.input.description}`} className="size-20 shrink-0 rounded-lg border border-slate-200 object-cover" />
+      ) : (
+        <div className="size-20 shrink-0 rounded-lg border border-slate-200 bg-slate-100" aria-hidden />
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded px-2 py-0.5 text-xs font-bold uppercase tracking-wide ${severityStyles[item.input.severity].badge}`}>
+            {item.input.severity}
+          </span>
+          <span className="text-xs text-slate-500">
+            {qty} {qty === 1 ? "unit" : "units"}
+            {sectionTitle ? ` · ${sectionTitle}` : ""}
+          </span>
+          <span
+            className={`rounded px-2 py-0.5 text-[11px] font-semibold ${
+              failed ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-900"
+            }`}
+          >
+            {failed ? "Couldn't upload" : "Saved on phone · waiting to upload"}
+          </span>
+        </div>
+        <p className="mt-1 text-sm text-slate-800">{item.input.description}</p>
+        {failed && item.error ? <p className="mt-1 text-sm text-red-800">{item.error}</p> : null}
+      </div>
+      <div className="flex h-fit shrink-0 flex-col items-end gap-2">
+        {failed ? (
+          <button
+            type="button"
+            onClick={retry}
+            disabled={busy}
+            className="text-xs font-semibold text-navy hover:underline disabled:opacity-60"
+          >
+            {busy ? "Trying…" : "Try again"}
+          </button>
+        ) : null}
+        <button type="button" onClick={remove} className="text-xs font-semibold text-slate-500 hover:text-red-700">
+          Remove
+        </button>
+      </div>
+    </li>
   );
 }
 
@@ -319,6 +371,8 @@ type Props = {
   canAdd: boolean;
   /** Shown instead of the Log defect button while defects can't be logged yet. */
   lockedHint?: string | null;
+  /** Defects saved on this phone and not uploaded yet. */
+  pendingDefects?: DefectItem[];
   /** Lets a parent (the bottom action bar) open the Log defect dialog. */
   dialogOpen?: boolean;
   onDialogOpenChange?: (open: boolean) => void;
@@ -330,6 +384,7 @@ export function DefectLogSection({
   defects,
   canAdd,
   lockedHint,
+  pendingDefects = [],
   dialogOpen,
   onDialogOpenChange,
 }: Props) {
@@ -360,9 +415,12 @@ export function DefectLogSection({
         <div>
           <h2 className="text-xs font-bold uppercase tracking-widest text-[#002147]">Defects</h2>
           <p className="mt-1 text-sm text-slate-muted">
-            {defects.length === 0
+            {defects.length === 0 && pendingDefects.length === 0
               ? "No defects logged."
               : `${defects.reduce((n, d) => n + d.quantity, 0)} defective units logged`}
+            {pendingDefects.length > 0
+              ? ` · ${pendingDefects.length} waiting to upload`
+              : ""}
           </p>
         </div>
         {canAdd ? (
@@ -385,6 +443,14 @@ export function DefectLogSection({
         <p className="border-b border-red-200 bg-red-50 px-6 py-3 text-sm text-red-900" role="alert">
           {error}
         </p>
+      ) : null}
+
+      {pendingDefects.length > 0 ? (
+        <ul className="divide-y divide-slate-100 border-b border-slate-100 bg-amber-50/40">
+          {pendingDefects.map((d) => (
+            <PendingDefectRow key={d.id} item={d} sectionTitle={sectionTitles.get(d.input.checklistSection)} />
+          ))}
+        </ul>
       ) : null}
 
       {defects.length > 0 ? (

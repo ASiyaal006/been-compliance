@@ -356,6 +356,15 @@ export async function createDefectLog(raw: CreateDefectInput): Promise<{ ok: tru
     return { ok: false, error: "The photo could not be attached." };
   }
 
+  // An offline upload that is retried after the connection dropped mid-way may already have been logged.
+  const { data: existing } = await ctx.supabase
+    .from("defect_logs")
+    .select("id")
+    .eq("order_id", raw.orderId)
+    .eq("photo_url", raw.photoPath)
+    .maybeSingle();
+  if (existing) return { ok: true };
+
   const { error } = await ctx.supabase.from("defect_logs").insert({
     order_id: raw.orderId,
     severity: raw.severity,

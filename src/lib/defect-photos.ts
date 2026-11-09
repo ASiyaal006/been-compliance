@@ -14,8 +14,8 @@ export function isDefectPhotoType(mimeType: string): boolean {
 }
 
 /** Storage path for a new photo: "<user id>/<order id>/<random id>.<ext>". */
-export function defectPhotoPath(userId: string, orderId: string, mimeType: string): string {
-  return `${userId}/${orderId}/${crypto.randomUUID()}.${EXTENSIONS[mimeType] ?? "jpg"}`;
+export function defectPhotoPath(userId: string, orderId: string, mimeType: string, id: string = crypto.randomUUID()): string {
+  return `${userId}/${orderId}/${id}.${EXTENSIONS[mimeType] ?? "jpg"}`;
 }
 
 /** True when the path sits in this user's folder for this order and has the shape we create. */
