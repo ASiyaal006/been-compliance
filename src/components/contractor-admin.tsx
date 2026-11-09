@@ -2,7 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { addContractor, removeContractor, resendInvite, type InviteOutcome } from "@/actions/contractors";
+import {
+  addContractor,
+  removeContractor,
+  resendInvite,
+  sendContractorPasswordLink,
+  type InviteOutcome,
+} from "@/actions/contractors";
 
 const labelCls = "mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-muted";
 const inputCls =
@@ -162,12 +168,24 @@ export function RemoveContractorButton({ id, name }: { id: string; name: string 
   );
 }
 
-function InviteMessage({ name, email, invite }: { name: string; email?: string; invite: InviteOutcome }) {
+function InviteMessage({
+  name,
+  email,
+  invite,
+  reset = false,
+}: {
+  name: string;
+  email?: string;
+  invite: InviteOutcome;
+  reset?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   if (invite.kind !== "link") {
     return (
       <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900" role="status">
-        {invite.kind === "emailed"
+        {reset
+          ? `Password link sent to ${email ?? name}. It lets them choose a new password and works once.`
+          : invite.kind === "emailed"
           ? `Invite sent to ${email ?? name}. Once they set a password, their jobs appear under My jobs.`
           : `${name} added. They'll see their jobs under My jobs.`}
       </p>
@@ -184,8 +202,10 @@ function InviteMessage({ name, email, invite }: { name: string; email?: string; 
   return (
     <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950" role="status">
       <p>
-        {name}&apos;s login is ready, but the invite email couldn&apos;t be sent automatically. Copy this link and send it
-        to them (WhatsApp or your own email). It lets them set a password and works once.
+        {reset
+          ? `The password email to ${name} couldn't be sent automatically.`
+          : `${name}'s login is ready, but the invite email couldn't be sent automatically.`}{" "}
+        Copy this link and send it to them (WhatsApp or your own email). It lets them set a password and works once.
       </p>
       <div className="flex gap-2">
         <input
@@ -243,6 +263,47 @@ export function ResendInviteButton({ id, name }: { id: string; name: string }) {
         </p>
       ) : null}
       {invite ? <InviteMessage name={name} invite={invite} /> : null}
+    </div>
+  );
+}
+
+export function SendPasswordLinkButton({ id, name }: { id: string; name: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState<{ invite: InviteOutcome; email: string } | null>(null);
+
+  async function send() {
+    if (!window.confirm(`Email ${name} a link to choose a new password? Their current password keeps working until they change it.`)) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setSent(null);
+    const res = await sendContractorPasswordLink(id);
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setSent({ invite: res.invite, email: res.email });
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      <button
+        type="button"
+        onClick={send}
+        disabled={busy}
+        className="text-xs font-semibold text-navy underline-offset-2 hover:underline disabled:opacity-60"
+      >
+        {busy ? "Sending…" : "Send password link"}
+      </button>
+      {error ? (
+        <p className="text-xs text-red-800" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {sent ? <InviteMessage name={name} email={sent.email} invite={sent.invite} reset /> : null}
     </div>
   );
 }

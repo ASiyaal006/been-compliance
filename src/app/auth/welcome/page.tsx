@@ -3,10 +3,11 @@ import { SetPasswordForm } from "@/components/set-password-form";
 
 export const metadata: Metadata = { title: "Set your password · Been Compliance" };
 
-type Props = { searchParams: Promise<{ next?: string }> };
+type Props = { searchParams: Promise<{ next?: string; mode?: string }> };
 
 export default async function WelcomePage({ searchParams }: Props) {
-  const { next } = await searchParams;
+  const { next, mode } = await searchParams;
+  const reset = mode === "reset";
   const redirectTo = next?.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
 
   return (
@@ -16,10 +17,14 @@ export default async function WelcomePage({ searchParams }: Props) {
           <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl bg-navy text-lg font-bold text-white">
             B
           </div>
-          <h1 className="text-xl font-semibold text-[#002147]">Welcome to Been Compliance</h1>
-          <p className="mt-1 text-sm text-slate-muted">Choose a password to finish setting up your login</p>
+          <h1 className="text-xl font-semibold text-[#002147]">
+            {reset ? "Choose a new password" : "Welcome to Been Compliance"}
+          </h1>
+          <p className="mt-1 text-sm text-slate-muted">
+            {reset ? "Pick a new password for your Been Compliance login" : "Choose a password to finish setting up your login"}
+          </p>
         </div>
-        <SetPasswordForm redirectTo={redirectTo} />
+        <SetPasswordForm redirectTo={redirectTo} reset={reset} />
       </div>
     </div>
   );
