@@ -19,6 +19,8 @@ export type CreatePreUseCheckInput = {
   checkedBy: string;
   items: PreUseItemAnswer[];
   faultNotes: string;
+  /** Set when an offline save is sent again after an earlier try whose answer never arrived. */
+  retry?: boolean;
 };
 
 export type CreatePreUseCheckResult =
@@ -73,6 +75,19 @@ export async function createPreUseCheck(raw: CreatePreUseCheckInput): Promise<Cr
   const accessErr = profileAccessError(ctx.profile);
   if (accessErr) {
     return { ok: false, error: accessErr };
+  }
+
+  if (raw.retry) {
+    const { data: existing } = await ctx.supabase
+      .from("pre_use_checks")
+      .select("id")
+      .eq("asset_id", assetId)
+      .eq("checked_on", checkedOn)
+      .eq("checked_by", checkedBy)
+      .eq("created_by", ctx.user.id)
+      .eq("result", result)
+      .limit(1);
+    if (existing && existing.length > 0) return { ok: true, result };
   }
 
   const { error } = await ctx.supabase.from("pre_use_checks").insert({

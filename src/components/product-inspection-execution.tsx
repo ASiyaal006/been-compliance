@@ -18,7 +18,7 @@ export function ProductInspectionExecution({ workspace, defects }: Props) {
 
   // Work saved on this phone but not uploaded yet.
   const { items } = useOutbox();
-  const mine = items?.filter((i) => i.orderId === workspace.orderId);
+  const mine = items?.filter((i) => (i.kind === "save" || i.kind === "defect") && i.orderId === workspace.orderId);
   const pendingSave = mine?.find((i): i is SaveItem => i.kind === "save");
   const pendingDefects = mine?.filter((i): i is DefectItem => i.kind === "defect") ?? [];
 
