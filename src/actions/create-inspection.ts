@@ -31,6 +31,8 @@ export type CreateInspectionInput = {
   testDetails: string;
   /** Structured results for the chosen type (see INSPECTION_TYPE_CONFIG). */
   testResults?: Record<string, string>;
+  /** Set when an offline save is sent again after an earlier try whose answer never arrived. */
+  retry?: boolean;
 };
 
 export type CreateInspectionResult = { ok: true } | { ok: false; error: string };
@@ -116,6 +118,17 @@ export async function createInspectionRecord(
 
   if (!inspectionTypesFor(asset.machinery_type).includes(type)) {
     return { ok: false, error: `A ${INSPECTION_TYPE_CONFIG[type].label} can't be logged on this asset.` };
+  }
+
+  if (raw.retry) {
+    const { data: existing } = await ctx.supabase
+      .from("inspections")
+      .select("id")
+      .eq("asset_id", assetId)
+      .eq("inspection_date", inspectionDate)
+      .eq("reference", reference)
+      .limit(1);
+    if (existing && existing.length > 0) return { ok: true };
   }
 
   let due: { recordDue: string | null; updatesAsset: boolean };

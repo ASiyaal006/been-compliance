@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { flushOutbox, useOutbox } from "@/lib/offline/outbox";
+import { flushOutbox, outboxItemHref, useOutbox } from "@/lib/offline/outbox";
 import { useOnline } from "@/lib/use-online";
 
 /** How often to try again while something is waiting and the phone says it has signal. */
@@ -59,7 +59,7 @@ export function OfflineBadge() {
   }, [uploadedRuns, router]);
 
   const stuck = pending.some((i) => i.attempts >= 3);
-  const failedOrder = failed[0]?.orderId;
+  const failedHref = failed[0] ? outboxItemHref(failed[0]) : null;
 
   let tone: "amber" | "red" | "green" | null = null;
   let body: React.ReactNode = null;
@@ -70,10 +70,14 @@ export function OfflineBadge() {
       <>
         <span className="font-semibold">{plural(failed.length, "change", "changes")} couldn&apos;t upload.</span>{" "}
         {failed[0].error}{" "}
-        <Link href={`/product-inspections/${failedOrder}`} className="font-semibold underline underline-offset-2">
-          Open the inspection
-        </Link>{" "}
-        to fix it.
+        {failedHref ? (
+          <>
+            <Link href={failedHref} className="font-semibold underline underline-offset-2">
+              Open it
+            </Link>{" "}
+            to fix it or remove it.
+          </>
+        ) : null}
       </>
     );
   } else if (!online) {
@@ -85,7 +89,7 @@ export function OfflineBadge() {
       </>
     ) : (
       <>
-        <span className="font-semibold">You&apos;re offline.</span> Keep going: inspections and defects are saved on this
+        <span className="font-semibold">You&apos;re offline.</span> Keep going: inspections, defects and checks are saved on this
         phone and upload by themselves when the signal is back.
       </>
     );

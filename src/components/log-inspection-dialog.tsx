@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createInspectionRecord } from "@/actions/create-inspection";
+import { queueAssetInspection, removeOutboxItem, sendNow } from "@/lib/offline/outbox";
 import { ZeroTouchCapture } from "@/components/zero-touch/ZeroTouchCapture";
 import { useZeroTouchUpload } from "@/components/zero-touch/use-zero-touch-upload";
 import { INSPECTION_OUTCOMES_FORM, type InspectionOutcomeForm } from "@/lib/types/inspection";
@@ -138,7 +138,10 @@ export function LogInspectionDialog({ assetId, assetLabel, machineryType, open, 
     }
     setBusy(true);
     setError(null);
-    const res = await createInspectionRecord({
+    // Kept on the phone first, then uploaded straight away if there's signal, or later by itself.
+    let id: string;
+    try {
+      id = await queueAssetInspection({
       assetId,
       inspectionType,
       testResults,
@@ -153,10 +156,17 @@ export function LogInspectionDialog({ assetId, assetLabel, machineryType, open, 
       defects,
       defectRemedyBy,
       testDetails,
-    });
+      });
+    } catch {
+      setBusy(false);
+      setError("This phone couldn't keep the inspection. Check you aren't in private browsing, then try again.");
+      return;
+    }
+    const result = await sendNow(id);
     setBusy(false);
-    if (!res.ok) {
-      setError(res.error);
+    if (result.status === "rejected") {
+      await removeOutboxItem(id);
+      setError(result.error);
       return;
     }
     setInspectionDate("");
@@ -174,7 +184,7 @@ export function LogInspectionDialog({ assetId, assetLabel, machineryType, open, 
       employer: examinerEmployer.trim(),
     });
     handleClose();
-    router.refresh();
+    if (result.status === "sent") router.refresh();
   }
 
   return (

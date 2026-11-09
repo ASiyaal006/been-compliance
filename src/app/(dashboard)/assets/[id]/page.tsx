@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AssetQrTag } from "@/components/asset-qr-tag";
 import { AssetInspectionDocument } from "@/components/asset-inspection-document";
+import { PendingAssetRecords } from "@/components/pending-asset-records";
 import { PreUseChecksSection } from "@/components/pre-use-checks-section";
 import { fetchPreUseChecks } from "@/lib/data/pre-use-check-queries";
 import { publicAssetUrl } from "@/lib/site-url";
@@ -89,6 +90,7 @@ export default async function AssetInspectionFilePage({ params }: Props) {
           {dbAssetId ? (
             <AssetQrTag assetLabel={model.headlineId} publicUrl={publicAssetUrl(dbAssetId)} />
           ) : null}
+          {dbAssetId ? <PendingAssetRecords assetId={dbAssetId} /> : null}
           <AssetInspectionDocument model={model} assetId={dbAssetId} />
           {dbAssetId && preUseChecks ? (
             <PreUseChecksSection assetId={dbAssetId} assetLabel={model.headlineId} list={preUseChecks} />

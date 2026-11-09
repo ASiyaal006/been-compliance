@@ -1,6 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { createInspectionRecord, type CreateInspectionInput } from "@/actions/create-inspection";
+import { createPreUseCheck, type CreatePreUseCheckInput } from "@/actions/create-pre-use-check";
 import { createDefectLog, saveInspection, type SaveInspectionInput } from "@/actions/product-inspection";
 import { DEFECT_PHOTOS_BUCKET, defectPhotoPath } from "@/lib/defect-photos";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -8,7 +10,8 @@ import { withTimeout } from "@/lib/with-timeout";
 import type { DefectSeverity } from "@/lib/types/product-inspection";
 
 /**
- * The offline outbox: inspection saves and defects are written to this phone first (IndexedDB) and
+ * The offline outbox: product inspection saves and defects, and the competent person's equipment
+ * inspections and pre-use checks, are written to this phone first (IndexedDB) and
  * uploaded in the order they were made, straight away when there is signal and automatically later
  * when there isn't. Items that the server turns down stay here, marked failed, until the inspector
  * fixes or removes them, so nothing typed on the factory floor is ever silently lost.
@@ -16,7 +19,6 @@ import type { DefectSeverity } from "@/lib/types/product-inspection";
 
 type ItemBase = {
   id: string;
-  orderId: string;
   /** Upload order. A save that replaces an older one moves to the back, after defects logged before it. */
   seq: number;
   /** "failed" means the server turned it down (shown to the inspector); network trouble just stays "pending". */
@@ -26,7 +28,7 @@ type ItemBase = {
   attempts: number;
 };
 
-export type SaveItem = ItemBase & { kind: "save"; input: SaveInspectionInput };
+export type SaveItem = ItemBase & { kind: "save"; orderId: string; input: SaveInspectionInput };
 
 export type DefectFields = {
   severity: DefectSeverity;
@@ -37,6 +39,7 @@ export type DefectFields = {
 
 export type DefectItem = ItemBase & {
   kind: "defect";
+  orderId: string;
   input: DefectFields;
   photo: Blob;
   photoType: string;
@@ -45,7 +48,32 @@ export type DefectItem = ItemBase & {
   createdAt: number;
 };
 
-export type OutboxItem = SaveItem | DefectItem;
+/** A thorough examination of a piece of equipment, logged by the competent person. */
+export type AssetInspectionItem = ItemBase & {
+  kind: "asset-inspection";
+  assetId: string;
+  input: CreateInspectionInput;
+  createdAt: number;
+};
+
+export type PreUseCheckItem = ItemBase & {
+  kind: "pre-use-check";
+  assetId: string;
+  input: CreatePreUseCheckInput;
+  createdAt: number;
+};
+
+export type OutboxItem = SaveItem | DefectItem | AssetInspectionItem | PreUseCheckItem;
+
+/** Items for the same booking or the same piece of equipment go up in order and wait on each other. */
+function groupOf(item: OutboxItem): string {
+  return item.kind === "save" || item.kind === "defect" ? `order:${item.orderId}` : `asset:${item.assetId}`;
+}
+
+/** The page where the inspector can see and fix an item. */
+export function outboxItemHref(item: OutboxItem): string {
+  return item.kind === "save" || item.kind === "defect" ? `/product-inspections/${item.orderId}` : `/assets/${item.assetId}`;
+}
 
 // ------------------------------------------------------------------------------
 // IndexedDB
@@ -216,6 +244,40 @@ export async function queueDefect(orderId: string, input: DefectFields, photo: F
   return item.id;
 }
 
+export async function queueAssetInspection(input: CreateInspectionInput): Promise<string> {
+  const item: AssetInspectionItem = {
+    id: `asset-inspection:${crypto.randomUUID()}`,
+    kind: "asset-inspection",
+    assetId: input.assetId,
+    seq: nextSeq(),
+    status: "pending",
+    attempts: 0,
+    input,
+    createdAt: Date.now(),
+  };
+  await putItem(item);
+  keepStorage();
+  await changed();
+  return item.id;
+}
+
+export async function queuePreUseCheck(input: CreatePreUseCheckInput): Promise<string> {
+  const item: PreUseCheckItem = {
+    id: `pre-use-check:${crypto.randomUUID()}`,
+    kind: "pre-use-check",
+    assetId: input.assetId,
+    seq: nextSeq(),
+    status: "pending",
+    attempts: 0,
+    input,
+    createdAt: Date.now(),
+  };
+  await putItem(item);
+  keepStorage();
+  await changed();
+  return item.id;
+}
+
 export async function removeOutboxItem(id: string) {
   await deleteItem(id);
   await changed();
@@ -240,8 +302,12 @@ type SendResult = { ok: true } | { ok: false; error: string };
 /** Thrown for anything that isn't a clear answer from the server: no signal, timeouts, app updates. */
 class ConnectionError extends Error {}
 
-async function sendSave(item: SaveItem): Promise<SendResult> {
-  return saveInspection(item.input);
+async function sendRecord(item: SaveItem | AssetInspectionItem | PreUseCheckItem): Promise<SendResult> {
+  // After a try whose answer never arrived, the server checks it wasn't already recorded.
+  const retry = item.attempts > 0;
+  if (item.kind === "save") return saveInspection(item.input);
+  if (item.kind === "asset-inspection") return createInspectionRecord({ ...item.input, retry });
+  return createPreUseCheck({ ...item.input, retry });
 }
 
 async function sendDefect(item: DefectItem): Promise<SendResult> {
@@ -314,19 +380,19 @@ async function runOnce() {
 
   for (const item of items) {
     if (item.status === "failed") {
-      held.add(item.orderId);
+      held.add(groupOf(item));
       continue;
     }
-    if (held.has(item.orderId)) continue;
+    if (held.has(groupOf(item))) continue;
     if (typeof navigator !== "undefined" && !navigator.onLine) break;
 
     let result: SendResult;
     try {
       // Factory Wi-Fi often says "connected" with nothing getting through, so don't wait for ever.
       result =
-        item.kind === "save"
-          ? await withTimeout(sendSave(item), "Saving", 30_000)
-          : await withTimeout(sendDefect(item), "Uploading the defect", 120_000);
+        item.kind === "defect"
+          ? await withTimeout(sendDefect(item), "Uploading the defect", 120_000)
+          : await withTimeout(sendRecord(item), "Saving", 30_000);
     } catch (err) {
       await updateIfUnchanged(item, (current) => ({
         ...current,
@@ -344,7 +410,7 @@ async function runOnce() {
       await updateIfUnchanged(item, (current) => ({ ...current, attempts: current.attempts + 1, error: result.error }));
       break;
     } else {
-      held.add(item.orderId);
+      held.add(groupOf(item));
       await updateIfUnchanged(item, (current) => ({ ...current, status: "failed", error: result.error }));
     }
   }

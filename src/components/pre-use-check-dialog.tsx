@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { createPreUseCheck } from "@/actions/create-pre-use-check";
+import { queuePreUseCheck, removeOutboxItem, sendNow } from "@/lib/offline/outbox";
 import {
   PRE_USE_ANSWERS,
   PRE_USE_CHECK_ITEMS,
@@ -106,10 +106,20 @@ export function PreUseCheckDialog({ assetId, assetLabel, open, onClose }: Props)
 
     setBusy(true);
     setError(null);
-    const res = await createPreUseCheck({ assetId, checkedOn, checkedBy, items, faultNotes });
+    // Kept on the phone first, then uploaded straight away if there's signal, or later by itself.
+    let id: string;
+    try {
+      id = await queuePreUseCheck({ assetId, checkedOn, checkedBy, items, faultNotes });
+    } catch {
+      setBusy(false);
+      setError("This phone couldn't keep the check. Check you aren't in private browsing, then try again.");
+      return;
+    }
+    const outcome = await sendNow(id);
     setBusy(false);
-    if (!res.ok) {
-      setError(res.error);
+    if (outcome.status === "rejected") {
+      await removeOutboxItem(id);
+      setError(outcome.error);
       return;
     }
     saveChecker(checkedBy.trim());
@@ -117,7 +127,7 @@ export function PreUseCheckDialog({ assetId, assetLabel, open, onClose }: Props)
     setFaultNotes("");
     setCheckedOn("");
     handleClose();
-    router.refresh();
+    if (outcome.status === "sent") router.refresh();
   }
 
   return (
