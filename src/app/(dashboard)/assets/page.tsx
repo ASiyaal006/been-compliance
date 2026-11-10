@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ExpiryBadge } from "@/components/expiry-badge";
 import { ScanAssetButton } from "@/components/scan-asset-button";
 import { fetchRegisterAssets } from "@/lib/data/asset-queries";
+import { getAuthenticatedContext } from "@/lib/supabase/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { withTimeout } from "@/lib/with-timeout";
 
@@ -24,8 +25,10 @@ export default async function AssetRegisterPage({
 
   let rows: Awaited<ReturnType<typeof fetchRegisterAssets>> = [];
   let loadError: string | null = null;
+  let isAdmin = false;
 
   if (configured) {
+    isAdmin = Boolean((await getAuthenticatedContext())?.profile.isBeenAdmin);
     try {
       rows = await withTimeout(fetchRegisterAssets(), "Loading asset register");
     } catch (e) {
@@ -76,6 +79,17 @@ export default async function AssetRegisterPage({
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
               <ScanAssetButton />
+              {isAdmin ? (
+                <Link
+                  href="/assets/import"
+                  className="order-last col-span-2 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-navy shadow-sm transition hover:bg-slate-50 sm:order-none sm:col-span-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                >
+                  <svg className="size-4 shrink-0" aria-hidden fill="none" viewBox="0 0 24 24">
+                    <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16V4m0 0-4 4m4-4 4 4M5 20h14" />
+                  </svg>
+                  Import spreadsheet
+                </Link>
+              ) : null}
               <Link
                 href="/assets/new"
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-navy px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#00306a] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
