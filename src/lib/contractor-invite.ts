@@ -9,22 +9,22 @@ export type InviteResult =
   | { ok: true; userId: string; emailed: false; link: string }
   | { ok: false; error: string };
 
-function welcomeUrl(): string {
-  return `${getSiteOrigin()}/auth/welcome?next=/inspector/queue`;
+function welcomeUrl(next: string): string {
+  return `${getSiteOrigin()}/auth/welcome?next=${encodeURIComponent(next)}`;
 }
 
 /**
  * Creates a login for someone new (or one who never accepted an earlier invite) and emails them a link
- * to choose a password. Falls back to returning the link when Supabase can't send email.
+ * to choose a password, landing on `next` afterwards. Falls back to returning the link when Supabase can't send email.
  */
-export async function inviteUser(email: string, fullName: string): Promise<InviteResult> {
+export async function inviteUser(email: string, fullName: string, next = "/inspector/queue"): Promise<InviteResult> {
   let admin;
   try {
     admin = createSupabaseAdmin();
   } catch {
     return { ok: false, error: "The app's Supabase service key isn't configured, so it can't create logins." };
   }
-  const redirectTo = welcomeUrl();
+  const redirectTo = welcomeUrl(next);
   const data = { full_name: fullName };
 
   const invited = await admin.auth.admin.inviteUserByEmail(email, { redirectTo, data });

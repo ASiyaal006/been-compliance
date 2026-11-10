@@ -1,15 +1,19 @@
 import type { ReactNode } from "react";
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { DbConnectionBanner } from "@/components/db-connection-banner";
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { OfflineBadge } from "@/components/offline-badge";
 import { AccountAccessBanner } from "@/components/account-access-banner";
 import { findContractorForUser } from "@/lib/contractors";
+import { isCustomerProfile, PORTAL_HOME } from "@/lib/customers";
 import { requireAuthenticatedContext } from "@/lib/supabase/auth";
 
 async function DashboardChrome({ children }: { children: ReactNode }) {
   const { supabase, user, profile, profileError } = await requireAuthenticatedContext();
   const isContractor = !profile.isBeenAdmin && (await findContractorForUser(supabase, user.id)) !== null;
+  // Customer logins use the read-only certificate portal, not the staff dashboard.
+  if (isCustomerProfile(profile, isContractor)) redirect(PORTAL_HOME);
 
   return (
     <div className="grid min-h-dvh grid-cols-1 bg-slate-100 font-sans lg:grid-cols-[16rem_1fr] print:block print:min-h-0 print:bg-white">

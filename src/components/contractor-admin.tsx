@@ -168,16 +168,22 @@ export function RemoveContractorButton({ id, name }: { id: string; name: string 
   );
 }
 
-function InviteMessage({
+export function InviteMessage({
   name,
   email,
   invite,
   reset = false,
+  where = "Once they set a password, their jobs appear under My jobs.",
+  existing,
 }: {
   name: string;
   email?: string;
   invite: InviteOutcome;
   reset?: boolean;
+  /** What happens once an emailed invite is accepted. */
+  where?: string;
+  /** Message when they already had a login. */
+  existing?: string;
 }) {
   const [copied, setCopied] = useState(false);
   if (invite.kind !== "link") {
@@ -186,8 +192,8 @@ function InviteMessage({
         {reset
           ? `Password link sent to ${email ?? name}. It lets them choose a new password and works once.`
           : invite.kind === "emailed"
-          ? `Invite sent to ${email ?? name}. Once they set a password, their jobs appear under My jobs.`
-          : `${name} added. They'll see their jobs under My jobs.`}
+          ? `Invite sent to ${email ?? name}. ${where}`
+          : (existing ?? `${name} added. They'll see their jobs under My jobs.`)}
       </p>
     );
   }
