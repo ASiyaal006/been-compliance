@@ -2,9 +2,21 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // /api/cron routes check CRON_SECRET themselves.
-const PUBLIC_PREFIXES = ["/login", "/auth", "/public", "/~offline", "/api/cron"];
+// "/", /services, /about, /quote and /privacy are the public marketing website.
+const PUBLIC_PREFIXES = [
+  "/login",
+  "/auth",
+  "/public",
+  "/~offline",
+  "/api/cron",
+  "/services",
+  "/about",
+  "/quote",
+  "/privacy",
+];
 
 function isPublicPath(pathname: string): boolean {
+  if (pathname === "/") return true;
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 

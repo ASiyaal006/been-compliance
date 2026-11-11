@@ -8,6 +8,8 @@ export type EmailMessage = {
   subject: string;
   html: string;
   text: string;
+  /** Where replies go, e.g. the customer who filled in the quote form. */
+  replyTo?: string;
 };
 
 export type SendResult = { ok: true } | { ok: false; error: string };
@@ -35,6 +37,7 @@ export async function sendEmail(message: EmailMessage): Promise<SendResult> {
         subject: message.subject,
         html: message.html,
         text: message.text,
+        ...(message.replyTo ? { reply_to: message.replyTo } : {}),
       }),
     });
     if (res.ok) return { ok: true };
